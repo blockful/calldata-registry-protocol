@@ -15,8 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CDR Protocol",
-  description: "Calldata Registry Protocol - Browse, review, and publish on-chain calldata drafts",
+  title: "Calldata Registry",
+  description:
+    "On-chain registry for governance calldata review. Publish, review, and verify proposal calldata before execution.",
 };
 
 export default function RootLayout({
@@ -27,12 +28,12 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-neutral-950 text-neutral-100">
+      <body className="min-h-screen bg-black text-white">
         <Providers>
           <Header />
-          <main className="flex-1">{children}</main>
+          <main>{children}</main>
         </Providers>
       </body>
     </html>

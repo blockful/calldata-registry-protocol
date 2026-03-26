@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   useAccount,
@@ -9,34 +9,267 @@ import {
   useReadContract,
   useWaitForTransactionReceipt,
 } from "wagmi";
-import { parseEther, keccak256, encodeAbiParameters, toBytes, stringToBytes } from "viem";
+import {
+  parseEther,
+  keccak256,
+  encodeAbiParameters,
+  toBytes,
+  stringToBytes,
+} from "viem";
 import {
   calldataRegistryAbi,
   EIP712_DOMAIN,
   DRAFT_PUBLISH_TYPES,
 } from "@/abi/CalldataRegistry";
 import { REGISTRY_ADDRESS } from "@/config/wagmi";
+import { ActionBuilder } from "@/components/ActionBuilder";
+import type { ActionItem } from "@/components/ActionBuilder";
 
-interface CallEntry {
-  target: string;
-  value: string;
-  calldata: string;
+// ── Step indicator ─────────────────────────────────────────────────────
+
+const STEPS = ["Details", "Actions", "Review"] as const;
+
+function StepIndicator({ current }: { current: number }) {
+  return (
+    <div className="flex items-center gap-3 mb-10">
+      {STEPS.map((label, i) => (
+        <div key={label} className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <div
+              className={`w-1.5 h-1.5 ${
+                i <= current ? "bg-white" : "bg-white/20"
+              }`}
+            />
+            <span
+              className={`text-xs uppercase tracking-wider ${
+                i === current
+                  ? "text-white"
+                  : i < current
+                    ? "text-white/50"
+                    : "text-white/20"
+              }`}
+            >
+              {label}
+            </span>
+          </div>
+          {i < STEPS.length - 1 && (
+            <div
+              className={`w-8 h-px ${
+                i < current ? "bg-white/40" : "bg-white/10"
+              }`}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
 }
+
+// ── Step 1: Details ────────────────────────────────────────────────────
+
+function StepDetails({
+  org,
+  setOrg,
+  description,
+  setDescription,
+  extraData,
+  setExtraData,
+  previousVersion,
+  setPreviousVersion,
+}: {
+  org: string;
+  setOrg: (v: string) => void;
+  description: string;
+  setDescription: (v: string) => void;
+  extraData: string;
+  setExtraData: (v: string) => void;
+  previousVersion: string;
+  setPreviousVersion: (v: string) => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <div className="text-xs text-white/50 uppercase tracking-wider mb-1.5">
+          Organization Address
+        </div>
+        <input
+          type="text"
+          value={org}
+          onChange={(e) => setOrg(e.target.value)}
+          placeholder="0x..."
+          className="w-full bg-white/5 border border-white/10 text-white px-3 py-2 text-sm font-mono focus:border-white/30 focus:outline-none placeholder:text-white/20"
+        />
+      </div>
+
+      <div>
+        <div className="text-xs text-white/50 uppercase tracking-wider mb-1.5">
+          Description
+        </div>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Describe the purpose of this draft..."
+          rows={6}
+          className="w-full bg-white/5 border border-white/10 text-white px-3 py-2 text-sm focus:border-white/30 focus:outline-none placeholder:text-white/20 resize-y"
+        />
+        <div className="text-xs text-white/20 mt-1">Markdown supported</div>
+      </div>
+
+      <div>
+        <div className="text-xs text-white/50 uppercase tracking-wider mb-1.5">
+          Extra Data <span className="text-white/20 normal-case">optional</span>
+        </div>
+        <input
+          type="text"
+          value={extraData}
+          onChange={(e) => setExtraData(e.target.value)}
+          placeholder="0x"
+          className="w-full bg-white/5 border border-white/10 text-white px-3 py-2 text-sm font-mono focus:border-white/30 focus:outline-none placeholder:text-white/20"
+        />
+      </div>
+
+      <div>
+        <div className="text-xs text-white/50 uppercase tracking-wider mb-1.5">
+          Previous Version{" "}
+          <span className="text-white/20 normal-case">optional, 0 for new</span>
+        </div>
+        <input
+          type="text"
+          value={previousVersion}
+          onChange={(e) => setPreviousVersion(e.target.value)}
+          placeholder="0"
+          className="w-full bg-white/5 border border-white/10 text-white px-3 py-2 text-sm font-mono focus:border-white/30 focus:outline-none placeholder:text-white/20"
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Step 3: Review ─────────────────────────────────────────────────────
+
+function CalldataBlock({ data }: { data: string }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (!data || data === "0x") {
+    return <span className="font-mono text-xs text-white/30">0x</span>;
+  }
+
+  const isLong = data.length > 66;
+
+  return (
+    <div>
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="text-xs text-white/30 hover:text-white/50 mb-1"
+        >
+          {expanded ? "Collapse" : "Expand"} ({data.length} chars)
+        </button>
+      )}
+      <pre className="font-mono text-xs text-white/40 break-all whitespace-pre-wrap bg-white/[0.03] px-3 py-2">
+        {isLong && !expanded ? data.slice(0, 66) + "..." : data}
+      </pre>
+    </div>
+  );
+}
+
+function StepReview({
+  org,
+  description,
+  extraData,
+  previousVersion,
+  actions,
+}: {
+  org: string;
+  description: string;
+  extraData: string;
+  previousVersion: string;
+  actions: ActionItem[];
+}) {
+  return (
+    <div className="space-y-6">
+      {/* Details summary */}
+      <div className="border border-white/10 p-5 space-y-3">
+        <div className="text-xs text-white/30 uppercase tracking-wider mb-3">
+          Proposal Details
+        </div>
+        <div className="text-sm">
+          <span className="text-white/40">Organization </span>
+          <span className="font-mono text-white/70">{org || "--"}</span>
+        </div>
+        <div className="text-sm">
+          <span className="text-white/40">Description</span>
+          <div className="mt-2 whitespace-pre-wrap text-sm text-white/60 bg-white/[0.03] px-3 py-2">
+            {description || "No description"}
+          </div>
+        </div>
+        {extraData && extraData !== "0x" && (
+          <div className="text-sm">
+            <span className="text-white/40">Extra Data </span>
+            <span className="font-mono text-white/60">{extraData}</span>
+          </div>
+        )}
+        {previousVersion && previousVersion !== "0" && (
+          <div className="text-sm">
+            <span className="text-white/40">Previous Version </span>
+            <span className="font-mono text-white/60">#{previousVersion}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Actions summary */}
+      <div className="space-y-3">
+        <div className="text-xs text-white/30 uppercase tracking-wider">
+          Actions ({actions.length})
+        </div>
+        {actions.map((action, i) => (
+          <div key={i} className="border border-white/10 p-5 space-y-3">
+            <div className="text-xs text-white/30 font-mono">
+              Action {String(i + 1).padStart(2, "0")}
+            </div>
+            <div className="text-sm">
+              <span className="text-white/40">Target </span>
+              <span className="font-mono text-white/60">
+                {action.target || "--"}
+              </span>
+            </div>
+            {action.value && action.value !== "0" && (
+              <div className="text-sm">
+                <span className="text-white/40">Value </span>
+                <span className="font-mono text-white/60">
+                  {action.value} ETH
+                </span>
+              </div>
+            )}
+            <div className="text-sm">
+              <span className="text-white/40 block mb-1">Calldata</span>
+              <CalldataBlock data={action.calldata} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Main Form ──────────────────────────────────────────────────────────
 
 function NewDraftForm() {
   const searchParams = useSearchParams();
   const { address, isConnected, chainId } = useAccount();
 
+  // Form state
+  const [step, setStep] = useState(0);
   const [org, setOrg] = useState("");
   const [description, setDescription] = useState("");
   const [extraData, setExtraData] = useState("0x");
   const [previousVersion, setPreviousVersion] = useState(
     searchParams.get("previousVersion") ?? "0"
   );
-  const [calls, setCalls] = useState<CallEntry[]>([
+  const [actions, setActions] = useState<ActionItem[]>([
     { target: "", value: "0", calldata: "0x" },
   ]);
-  const [mode, setMode] = useState<"direct" | "gasless">("direct");
 
   // Direct publish
   const {
@@ -66,35 +299,40 @@ function NewDraftForm() {
     query: { enabled: !!address },
   });
 
-  function addCall() {
-    setCalls([...calls, { target: "", value: "0", calldata: "0x" }]);
-  }
+  // Validation
+  const step1Valid = useMemo(() => {
+    return org.trim().length > 0 && description.trim().length > 0;
+  }, [org, description]);
 
-  function removeCall(index: number) {
-    if (calls.length <= 1) return;
-    setCalls(calls.filter((_, i) => i !== index));
-  }
+  const step2Valid = useMemo(() => {
+    return (
+      actions.length > 0 &&
+      actions.every((a) => a.target.trim().length > 0)
+    );
+  }, [actions]);
 
-  function updateCall(index: number, field: keyof CallEntry, value: string) {
-    const updated = [...calls];
-    updated[index] = { ...updated[index], [field]: value };
-    setCalls(updated);
-  }
+  const canNext = step === 0 ? step1Valid : step === 1 ? step2Valid : false;
 
-  function handlePublish() {
-    if (!isConnected) return;
-
-    const targets = calls.map((c) => c.target as `0x${string}`);
-    const values = calls.map((c) => {
+  // Build transaction args
+  function buildArgs() {
+    const targets = actions.map((c) => c.target as `0x${string}`);
+    const values = actions.map((c) => {
       try {
         return parseEther(c.value);
       } catch {
         return BigInt(c.value || "0");
       }
     });
-    const calldatas = calls.map(
+    const calldatas = actions.map(
       (c) => (c.calldata || "0x") as `0x${string}`
     );
+    return { targets, values, calldatas };
+  }
+
+  function handlePublish() {
+    if (!isConnected) return;
+
+    const { targets, values, calldatas } = buildArgs();
 
     writeContract({
       address: REGISTRY_ADDRESS,
@@ -115,17 +353,7 @@ function NewDraftForm() {
   function handleGaslessSign() {
     if (!isConnected || !address || nonce === undefined) return;
 
-    const targets = calls.map((c) => c.target as `0x${string}`);
-    const values = calls.map((c) => {
-      try {
-        return parseEther(c.value);
-      } catch {
-        return BigInt(c.value || "0");
-      }
-    });
-    const calldatas = calls.map(
-      (c) => (c.calldata || "0x") as `0x${string}`
-    );
+    const { targets, values, calldatas } = buildArgs();
 
     const actionsHash = keccak256(
       encodeAbiParameters(
@@ -134,7 +362,9 @@ function NewDraftForm() {
       )
     );
     const descriptionHash = keccak256(stringToBytes(description));
-    const extraDataHash = keccak256(toBytes((extraData || "0x") as `0x${string}`));
+    const extraDataHash = keccak256(
+      toBytes((extraData || "0x") as `0x${string}`)
+    );
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
 
     signTypedData({
@@ -159,240 +389,160 @@ function NewDraftForm() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="mb-6 text-3xl font-bold text-white">
-        Publish New Draft
-      </h1>
+    <div className="max-w-[720px] mx-auto px-6 py-12">
+      {/* Page header */}
+      <h1 className="text-xl font-light text-white mb-1">New Draft</h1>
+      <p className="text-sm text-white/30 mb-8">
+        Create a proposal draft with encoded calldata for review.
+      </p>
 
-      {!isConnected && (
-        <div className="mb-6 rounded-xl border border-yellow-900/50 bg-yellow-950/30 p-4 text-center text-yellow-400">
-          Please connect your wallet to publish a draft.
+      {/* Step indicator */}
+      <StepIndicator current={step} />
+
+      {/* Wallet warning */}
+      {!isConnected && step === 2 && (
+        <div className="border border-white/10 p-4 text-sm text-white/40 mb-6">
+          Connect your wallet to publish or sign.
         </div>
       )}
 
-      <div className="space-y-6">
-        {/* Org Address */}
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-neutral-300">
-            Organization Address
-          </label>
-          <input
-            type="text"
-            value={org}
-            onChange={(e) => setOrg(e.target.value)}
-            placeholder="0x..."
-            className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 font-mono text-sm text-neutral-100 placeholder-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-        </div>
+      {/* Step content */}
+      {step === 0 && (
+        <StepDetails
+          org={org}
+          setOrg={setOrg}
+          description={description}
+          setDescription={setDescription}
+          extraData={extraData}
+          setExtraData={setExtraData}
+          previousVersion={previousVersion}
+          setPreviousVersion={setPreviousVersion}
+        />
+      )}
 
-        {/* Calls */}
+      {step === 1 && <ActionBuilder actions={actions} onChange={setActions} />}
+
+      {step === 2 && (
+        <StepReview
+          org={org}
+          description={description}
+          extraData={extraData}
+          previousVersion={previousVersion}
+          actions={actions}
+        />
+      )}
+
+      {/* Navigation */}
+      <div className="flex items-center justify-between mt-10 pt-6 border-t border-white/10">
         <div>
-          <div className="mb-2 flex items-center justify-between">
-            <label className="text-sm font-medium text-neutral-300">
-              Calls ({calls.length})
-            </label>
+          {step > 0 && (
             <button
               type="button"
-              onClick={addCall}
-              className="rounded bg-neutral-800 px-3 py-1 text-xs text-neutral-400 transition-colors hover:bg-neutral-700 hover:text-white"
+              onClick={() => setStep(step - 1)}
+              className="border border-white/20 text-white/60 px-4 py-2 text-sm hover:border-white/40 hover:text-white"
             >
-              + Add Call
+              Back
             </button>
-          </div>
-          <div className="space-y-4">
-            {calls.map((call, i) => (
-              <div
-                key={i}
-                className="rounded-xl border border-neutral-800 bg-neutral-900 p-4"
+          )}
+        </div>
+
+        <div className="flex gap-3">
+          {step < 2 && (
+            <button
+              type="button"
+              onClick={() => setStep(step + 1)}
+              disabled={!canNext}
+              className={`px-4 py-2 text-sm font-medium ${
+                canNext
+                  ? "bg-white text-black hover:bg-white/90"
+                  : "bg-white/10 text-white/20 cursor-not-allowed"
+              }`}
+            >
+              Next
+            </button>
+          )}
+
+          {step === 2 && (
+            <>
+              <button
+                type="button"
+                onClick={handlePublish}
+                disabled={!isConnected || isWriting || isConfirming}
+                className={`px-4 py-2 text-sm font-medium ${
+                  isConnected && !isWriting && !isConfirming
+                    ? "bg-white text-black hover:bg-white/90"
+                    : "bg-white/10 text-white/20 cursor-not-allowed"
+                }`}
               >
-                <div className="mb-3 flex items-center justify-between">
-                  <span className="text-xs font-medium uppercase tracking-wider text-neutral-500">
-                    Call {i + 1}
-                  </span>
-                  {calls.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeCall(i)}
-                      className="text-xs text-red-400 hover:text-red-300"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="mb-1 block text-xs text-neutral-500">
-                      Target Address
-                    </label>
-                    <input
-                      type="text"
-                      value={call.target}
-                      onChange={(e) =>
-                        updateCall(i, "target", e.target.value)
-                      }
-                      placeholder="0x..."
-                      className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 font-mono text-sm text-neutral-100 placeholder-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-neutral-500">
-                      Value (ETH or wei)
-                    </label>
-                    <input
-                      type="text"
-                      value={call.value}
-                      onChange={(e) =>
-                        updateCall(i, "value", e.target.value)
-                      }
-                      placeholder="0"
-                      className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 font-mono text-sm text-neutral-100 placeholder-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-neutral-500">
-                      Calldata (hex)
-                    </label>
-                    <textarea
-                      value={call.calldata}
-                      onChange={(e) =>
-                        updateCall(i, "calldata", e.target.value)
-                      }
-                      placeholder="0x"
-                      rows={2}
-                      className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 font-mono text-sm text-neutral-100 placeholder-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+                {isWriting
+                  ? "Submitting..."
+                  : isConfirming
+                    ? "Confirming..."
+                    : "Publish Draft"}
+              </button>
+              <button
+                type="button"
+                onClick={handleGaslessSign}
+                disabled={!isConnected || isSigning}
+                className={`px-4 py-2 text-sm border ${
+                  isConnected && !isSigning
+                    ? "border-white/20 text-white/60 hover:border-white/40 hover:text-white"
+                    : "border-white/10 text-white/20 cursor-not-allowed"
+                }`}
+              >
+                {isSigning ? "Signing..." : "Sign for Gasless Publish"}
+              </button>
+            </>
+          )}
         </div>
+      </div>
 
-        {/* Description */}
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-neutral-300">
-            Description
-          </label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Describe the purpose of this draft..."
-            rows={4}
-            className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-        </div>
-
-        {/* Extra Data */}
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-neutral-300">
-            Extra Data (optional)
-          </label>
-          <input
-            type="text"
-            value={extraData}
-            onChange={(e) => setExtraData(e.target.value)}
-            placeholder="0x"
-            className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 font-mono text-sm text-neutral-100 placeholder-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-        </div>
-
-        {/* Previous Version */}
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-neutral-300">
-            Previous Version (0 for new original draft)
-          </label>
-          <input
-            type="text"
-            value={previousVersion}
-            onChange={(e) => setPreviousVersion(e.target.value)}
-            placeholder="0"
-            className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 font-mono text-sm text-neutral-100 placeholder-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-        </div>
-
-        {/* Submit Mode */}
-        <div className="flex gap-3 rounded-xl border border-neutral-800 bg-neutral-900 p-3">
-          <button
-            type="button"
-            onClick={() => setMode("direct")}
-            className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              mode === "direct"
-                ? "bg-blue-600 text-white"
-                : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
-            }`}
-          >
-            Direct Transaction
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("gasless")}
-            className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              mode === "gasless"
-                ? "bg-blue-600 text-white"
-                : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
-            }`}
-          >
-            Gasless (Sign)
-          </button>
-        </div>
-
-        {/* Submit Button */}
-        {mode === "direct" ? (
-          <button
-            type="button"
-            onClick={handlePublish}
-            disabled={!isConnected || isWriting || isConfirming}
-            className="w-full rounded-lg bg-blue-600 py-3 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isWriting
-              ? "Submitting..."
-              : isConfirming
-                ? "Confirming..."
-                : "Publish Draft"}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={handleGaslessSign}
-            disabled={!isConnected || isSigning}
-            className="w-full rounded-lg bg-blue-600 py-3 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isSigning ? "Signing..." : "Sign Draft (Gasless)"}
-          </button>
-        )}
-
-        {/* Status Messages */}
+      {/* Status messages */}
+      <div className="mt-6 space-y-3">
         {writeError && (
-          <div className="rounded-lg border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-400">
-            Error: {writeError.message.slice(0, 200)}
+          <div className="border border-white/10 p-4 text-sm text-white/50">
+            <span className="text-white/30 text-xs uppercase tracking-wider block mb-1">
+              Error
+            </span>
+            {writeError.message.slice(0, 200)}
           </div>
         )}
 
         {signError && (
-          <div className="rounded-lg border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-400">
-            Error: {signError.message.slice(0, 200)}
+          <div className="border border-white/10 p-4 text-sm text-white/50">
+            <span className="text-white/30 text-xs uppercase tracking-wider block mb-1">
+              Error
+            </span>
+            {signError.message.slice(0, 200)}
           </div>
         )}
 
         {isConfirmed && txHash && (
-          <div className="rounded-lg border border-green-900/50 bg-green-950/30 p-3 text-sm text-green-400">
-            Draft published successfully! Tx:{" "}
-            <span className="font-mono">{txHash}</span>
+          <div className="border border-white/10 p-4">
+            <span className="text-white/30 text-xs uppercase tracking-wider block mb-1">
+              Published
+            </span>
+            <span className="font-mono text-sm text-white/60 break-all">
+              {txHash}
+            </span>
           </div>
         )}
 
         {signature && (
-          <div className="rounded-lg border border-green-900/50 bg-green-950/30 p-3">
-            <p className="mb-2 text-sm text-green-400">
-              Signature created. Share the following with a relayer to publish gaslessly:
+          <div className="border border-white/10 p-4">
+            <span className="text-white/30 text-xs uppercase tracking-wider block mb-2">
+              Signature Created
+            </span>
+            <p className="text-sm text-white/40 mb-3">
+              Share the following with a relayer to publish gaslessly:
             </p>
-            <pre className="block overflow-x-auto whitespace-pre-wrap break-all rounded bg-neutral-800 p-2 font-mono text-xs text-neutral-300">
+            <pre className="font-mono text-xs text-white/50 break-all whitespace-pre-wrap bg-white/[0.03] px-3 py-2 overflow-x-auto">
               {JSON.stringify(
                 {
                   org,
-                  targets: calls.map((c) => c.target),
-                  values: calls.map((c) => c.value),
-                  calldatas: calls.map((c) => c.calldata || "0x"),
+                  targets: actions.map((c) => c.target),
+                  values: actions.map((c) => c.value),
+                  calldatas: actions.map((c) => c.calldata || "0x"),
                   description,
                   extraData: extraData || "0x",
                   previousVersion: previousVersion || "0",
@@ -411,12 +561,14 @@ function NewDraftForm() {
   );
 }
 
+// ── Page Export ─────────────────────────────────────────────────────────
+
 export default function NewDraftPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto max-w-3xl px-4 py-8">
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-8 text-center text-neutral-500">
+        <div className="max-w-[720px] mx-auto px-6 py-12">
+          <div className="border border-white/10 p-6 text-sm text-white/40">
             Loading...
           </div>
         </div>

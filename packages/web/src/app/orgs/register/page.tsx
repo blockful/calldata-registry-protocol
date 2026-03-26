@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import {
+  useAccount,
+  useWriteContract,
+  useWaitForTransactionReceipt,
+} from "wagmi";
 import { calldataRegistryAbi } from "@/abi/CalldataRegistry";
 import { REGISTRY_ADDRESS } from "@/config/wagmi";
 
@@ -33,69 +37,74 @@ export default function RegisterOrgPage() {
   }
 
   return (
-    <div className="mx-auto max-w-xl px-4 py-8">
-      <h1 className="mb-6 text-3xl font-bold text-white">
+    <div className="max-w-[1080px] mx-auto px-6 py-12">
+      <h1 className="text-xl font-light text-white mb-2">
         {isUpdate ? "Update" : "Register"} Organization
       </h1>
+      <p className="text-sm text-white/40 mb-10 max-w-2xl">
+        Register msg.sender as an organization with a name and metadata URI.
+        Only callable once per address.
+      </p>
 
       {!isConnected && (
-        <div className="mb-6 rounded-xl border border-yellow-900/50 bg-yellow-950/30 p-4 text-center text-yellow-400">
-          Please connect your wallet to register an organization.
+        <div className="border border-white/10 p-6 text-sm text-white/40 mb-8">
+          Please connect your wallet to{" "}
+          {isUpdate ? "update" : "register"} an organization.
         </div>
       )}
 
-      <div className="space-y-6">
+      <div className="max-w-lg space-y-6">
         {/* Toggle Register/Update */}
-        <div className="flex gap-3 rounded-xl border border-neutral-800 bg-neutral-900 p-3">
+        <div className="flex border border-white/10">
           <button
             type="button"
             onClick={() => setIsUpdate(false)}
-            className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
               !isUpdate
-                ? "bg-blue-600 text-white"
-                : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
+                ? "bg-white text-black"
+                : "text-white/40 hover:text-white"
             }`}
           >
-            Register New
+            Register
           </button>
           <button
             type="button"
             onClick={() => setIsUpdate(true)}
-            className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            className={`flex-1 px-4 py-2 text-sm font-medium transition-colors border-l border-white/10 ${
               isUpdate
-                ? "bg-blue-600 text-white"
-                : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
+                ? "bg-white text-black"
+                : "text-white/40 hover:text-white"
             }`}
           >
-            Update Existing
+            Update
           </button>
         </div>
 
         {/* Name */}
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-neutral-300">
-            Organization Name
+          <label className="text-xs text-white/50 uppercase tracking-wider mb-1.5 block">
+            Name
           </label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="My DAO"
-            className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="bg-white/5 border border-white/10 text-white w-full px-3 py-2 text-sm focus:border-white/30 focus:outline-none placeholder:text-white/20"
           />
         </div>
 
         {/* Metadata URI */}
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-neutral-300">
+          <label className="text-xs text-white/50 uppercase tracking-wider mb-1.5 block">
             Metadata URI
           </label>
           <input
             type="text"
             value={metadataURI}
             onChange={(e) => setMetadataURI(e.target.value)}
-            placeholder="ipfs://... or https://..."
-            className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            placeholder="https://..."
+            className="bg-white/5 border border-white/10 text-white w-full px-3 py-2 text-sm focus:border-white/30 focus:outline-none placeholder:text-white/20"
           />
         </div>
 
@@ -104,28 +113,30 @@ export default function RegisterOrgPage() {
           type="button"
           onClick={handleSubmit}
           disabled={!isConnected || isWriting || isConfirming || !name}
-          className="w-full rounded-lg bg-blue-600 py-3 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+          className="bg-white text-black px-4 py-2 text-sm font-medium hover:bg-white/90 disabled:opacity-30 disabled:cursor-not-allowed"
         >
           {isWriting
             ? "Submitting..."
             : isConfirming
               ? "Confirming..."
               : isUpdate
-                ? "Update Organization"
-                : "Register Organization"}
+                ? "Update"
+                : "Register"}
         </button>
 
         {/* Status Messages */}
         {writeError && (
-          <div className="rounded-lg border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-400">
+          <div className="border border-white/10 p-4 text-sm text-white/60">
             Error: {writeError.message.slice(0, 200)}
           </div>
         )}
 
         {isConfirmed && txHash && (
-          <div className="rounded-lg border border-green-900/50 bg-green-950/30 p-3 text-sm text-green-400">
-            Organization {isUpdate ? "updated" : "registered"} successfully! Tx:{" "}
-            <span className="font-mono">{txHash}</span>
+          <div className="border border-white/10 p-4 text-sm text-white/60">
+            Organization {isUpdate ? "updated" : "registered"} successfully.
+            <span className="block mt-1 font-mono text-xs text-white/40 break-all">
+              {txHash}
+            </span>
           </div>
         )}
       </div>

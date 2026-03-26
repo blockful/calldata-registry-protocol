@@ -9,6 +9,23 @@ function truncateAddr(addr: string) {
   return addr.slice(0, 6) + "..." + addr.slice(-4);
 }
 
+function truncate(str: string, len: number) {
+  if (!str) return "";
+  return str.length > len ? str.slice(0, len) + "..." : str;
+}
+
+function timeAgo(timestamp: string): string {
+  if (!timestamp) return "--";
+  const seconds = Math.floor(Date.now() / 1000 - Number(timestamp));
+  if (seconds < 60) return seconds + "s ago";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return minutes + "m ago";
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return hours + "h ago";
+  const days = Math.floor(hours / 24);
+  return days + "d ago";
+}
+
 export default function OrgDetailPage({
   params,
 }: {
@@ -18,138 +35,120 @@ export default function OrgDetailPage({
   const { data: org, isLoading, error } = useOrg(address);
   const { data: drafts, isLoading: draftsLoading } = useOrgDrafts(address);
 
-  if (isLoading) {
-    return (
-      <div className="mx-auto max-w-4xl px-4 py-8">
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-8 text-center text-neutral-500">
-          Loading organization...
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !org) {
-    return (
-      <div className="mx-auto max-w-4xl px-4 py-8">
-        <div className="mb-4">
-          <Link
-            href="/orgs"
-            className="text-sm text-blue-400 hover:text-blue-300"
-          >
-            &larr; Back to Organizations
-          </Link>
-        </div>
-        <div className="rounded-xl border border-red-900/50 bg-red-950/30 p-8 text-center text-red-400">
-          {error ? "Failed to load organization." : "Organization not found."}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
-      <div className="mb-6">
+    <div className="max-w-[1080px] mx-auto px-6 py-12">
+      <div className="mb-8">
         <Link
           href="/orgs"
-          className="text-sm text-blue-400 hover:text-blue-300"
+          className="text-sm text-white underline decoration-white/20 underline-offset-2 hover:decoration-white/60"
         >
-          &larr; Back to Organizations
+          &larr; Organizations
         </Link>
       </div>
 
-      <h1 className="mb-6 text-3xl font-bold text-white">
-        {org.name || "Unnamed Org"}
+      <h1 className="text-xl font-light text-white font-mono mb-2 break-all">
+        {address}
       </h1>
 
-      {/* Org Details */}
-      <div className="mb-8 grid gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <span className="text-xs font-medium uppercase tracking-wider text-neutral-500">
-            Address
-          </span>
-          <p className="mt-1 break-all font-mono text-sm text-neutral-200">
-            {org.id}
-          </p>
+      {isLoading && (
+        <div className="border border-white/10 p-6 text-sm text-white/40 mt-6">
+          Loading organization...
         </div>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <span className="text-xs font-medium uppercase tracking-wider text-neutral-500">
-            Name
-          </span>
-          <p className="mt-1 text-sm text-neutral-200">
-            {org.name || "Not set"}
-          </p>
-        </div>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <span className="text-xs font-medium uppercase tracking-wider text-neutral-500">
-            Metadata URI
-          </span>
-          <p className="mt-1 break-all text-sm text-neutral-200">
-            {org.metadataURI || "Not set"}
-          </p>
-        </div>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <span className="text-xs font-medium uppercase tracking-wider text-neutral-500">
-            Status
-          </span>
-          <p className="mt-1 text-sm">
-            <span className="inline-flex items-center rounded-full bg-green-950/50 px-2.5 py-0.5 text-xs font-medium text-green-400 ring-1 ring-inset ring-green-500/20">
-              Registered
-            </span>
-          </p>
-        </div>
-      </div>
+      )}
 
-      {/* Drafts */}
+      {!isLoading && (error || !org) && (
+        <p className="text-sm text-white/40 mb-10">
+          This address is not registered as an organization.
+        </p>
+      )}
+
+      {!isLoading && org && (
+        <div className="mb-10">
+          <div className="border border-white/10 divide-y divide-white/10">
+            <div className="flex">
+              <span className="px-4 py-3 text-xs text-white/40 uppercase tracking-wider w-[140px] shrink-0">
+                Name
+              </span>
+              <span className="px-4 py-3 text-sm text-white">
+                {org.name || "Not set"}
+              </span>
+            </div>
+            <div className="flex">
+              <span className="px-4 py-3 text-xs text-white/40 uppercase tracking-wider w-[140px] shrink-0">
+                Metadata URI
+              </span>
+              <span className="px-4 py-3 text-sm text-white/60 font-mono break-all">
+                {org.metadataURI || "Not set"}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Drafts targeting this organization */}
       <div>
-        <h2 className="mb-3 text-lg font-semibold text-white">Drafts</h2>
+        <h2 className="text-base font-medium text-white mb-4">
+          Drafts targeting this organization
+        </h2>
 
         {draftsLoading && (
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-8 text-center text-neutral-500">
+          <div className="border border-white/10 p-6 text-sm text-white/40">
             Loading drafts...
           </div>
         )}
 
         {drafts && drafts.length === 0 && (
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-8 text-center text-neutral-500">
-            No drafts published by this organization yet.
+          <div className="border border-white/10 p-6 text-sm text-white/40">
+            No drafts targeting this organization yet.
           </div>
         )}
 
         {drafts && drafts.length > 0 && (
-          <div className="space-y-3">
-            {drafts.map((draft) => (
-              <Link
-                key={draft.id}
-                href={`/drafts/${draft.id}`}
-                className="block rounded-xl border border-neutral-800 bg-neutral-900 p-4 transition-colors hover:border-neutral-700"
-              >
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="font-mono text-sm font-medium text-white">
-                    Draft #{draft.id}
-                  </span>
-                  <span className="text-xs text-neutral-500">
-                    {draft.timestamp
-                      ? new Date(
-                          Number(draft.timestamp) * 1000
-                        ).toLocaleDateString()
-                      : ""}
-                  </span>
-                </div>
-                <p className="mb-2 text-sm text-neutral-400 line-clamp-2">
-                  {draft.description || "No description"}
-                </p>
-                <div className="flex items-center gap-4 text-xs text-neutral-500">
-                  <span>
-                    {draft.targets?.length ?? 0} call
-                    {draft.targets?.length !== 1 ? "s" : ""}
-                  </span>
-                  <span>by {truncateAddr(draft.proposer)}</span>
-                  {draft.previousVersion && draft.previousVersion !== "0" && (
-                    <span>fork of #{draft.previousVersion}</span>
-                  )}
-                </div>
-              </Link>
-            ))}
+          <div className="border border-white/10">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-white/10">
+                  <th className="px-4 py-3 text-xs font-normal text-white/40">
+                    ID
+                  </th>
+                  <th className="px-4 py-3 text-xs font-normal text-white/40">
+                    Proposer
+                  </th>
+                  <th className="px-4 py-3 text-xs font-normal text-white/40 hidden sm:table-cell">
+                    Description
+                  </th>
+                  <th className="px-4 py-3 text-xs font-normal text-white/40 text-right hidden sm:table-cell">
+                    Time
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {drafts.map((draft) => (
+                  <tr
+                    key={draft.id}
+                    className="border-b border-white/10 last:border-b-0"
+                  >
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/drafts/${draft.id}`}
+                        className="font-mono text-white underline decoration-white/20 underline-offset-2 hover:decoration-white/60"
+                      >
+                        #{draft.id}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-white/60">
+                      {truncateAddr(draft.proposer)}
+                    </td>
+                    <td className="px-4 py-3 text-white/40 hidden sm:table-cell">
+                      {truncate(draft.description, 60)}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-white/40 text-right hidden sm:table-cell">
+                      {timeAgo(draft.timestamp)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

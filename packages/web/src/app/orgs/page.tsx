@@ -7,61 +7,79 @@ export default function OrgsPage() {
   const { data: orgs, isLoading, error } = useOrgs();
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-white">Organizations</h1>
+    <div className="max-w-[1080px] mx-auto px-6 py-12">
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-xl font-light text-white">Organizations</h1>
         <Link
           href="/orgs/register"
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500"
+          className="bg-white text-black px-4 py-2 text-sm font-medium hover:bg-white/90"
         >
-          Register Org
+          Register your organization
         </Link>
       </div>
+      <p className="text-sm text-white/40 mb-10">
+        Registered on-chain entities. Any address can be targeted by drafts, but
+        registered orgs have human-readable metadata.
+      </p>
 
       {isLoading && (
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-8 text-center text-neutral-500">
+        <div className="border border-white/10 p-6 text-sm text-white/40">
           Loading organizations...
         </div>
       )}
 
       {error && (
-        <div className="rounded-xl border border-red-900/50 bg-red-950/30 p-8 text-center text-red-400">
+        <div className="border border-white/10 p-6 text-sm text-white/40">
           Unable to load organizations. Make sure the indexer is running.
         </div>
       )}
 
       {orgs && orgs.length === 0 && (
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-8 text-center text-neutral-500">
+        <div className="border border-white/10 p-6 text-sm text-white/40">
           No organizations registered yet.
         </div>
       )}
 
       {orgs && orgs.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {orgs.map((org) => (
-            <div
-              key={org.id}
-              className="rounded-xl border border-neutral-800 bg-neutral-900 p-5 transition-colors hover:border-neutral-700"
-            >
-              <h3 className="mb-2 text-lg font-semibold text-white">
-                {org.name || "Unnamed Org"}
-              </h3>
-              <p className="mb-3 font-mono text-xs text-neutral-400">
-                {org.id}
-              </p>
-              {org.metadataURI && (
-                <p className="mb-3 truncate text-sm text-neutral-500">
-                  {org.metadataURI}
-                </p>
-              )}
-              <Link
-                href={`/orgs/${org.id}`}
-                className="text-sm text-blue-400 hover:text-blue-300"
-              >
-                View Drafts
-              </Link>
-            </div>
-          ))}
+        <div className="border border-white/10">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-white/10">
+                <th className="px-4 py-3 text-xs font-normal text-white/40">
+                  Address
+                </th>
+                <th className="px-4 py-3 text-xs font-normal text-white/40">
+                  Name
+                </th>
+                <th className="px-4 py-3 text-xs font-normal text-white/40 hidden sm:table-cell">
+                  Metadata URI
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {orgs.map((org) => (
+                <tr
+                  key={org.id}
+                  className="border-b border-white/10 last:border-b-0"
+                >
+                  <td className="px-4 py-3">
+                    <Link
+                      href={`/orgs/${org.id}`}
+                      className="font-mono text-white underline decoration-white/20 underline-offset-2 hover:decoration-white/60"
+                    >
+                      {org.id}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3 text-white/60">
+                    {org.name || "Unnamed"}
+                  </td>
+                  <td className="px-4 py-3 text-white/40 font-mono text-xs hidden sm:table-cell max-w-[300px] truncate">
+                    {org.metadataURI || "--"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
