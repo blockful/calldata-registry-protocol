@@ -9,8 +9,8 @@ cache/
 *.log
 
 # Foundry
-packages/contracts/out/
-packages/contracts/cache/
+apps/contracts/out/
+apps/contracts/cache/
 broadcast/
 
 # IDE

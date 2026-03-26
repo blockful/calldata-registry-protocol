@@ -1,17 +1,17 @@
-# Calldata Draft Protocol
+# Calldata Registry Protocol
 
 On-chain registry for governance calldata review. Publish, review, and verify proposal calldata before execution.
 
 Governance calldata has no public review step. This protocol provides a fully on-chain registry where anyone can publish proposal calldata drafts for public review before execution. All calldata, metadata, and authorship are stored on-chain. Drafts are versioned and forkable.
 
-## Packages
+## Apps
 
-| Package | Description |
+| App | Description |
 |---------|-------------|
-| [`packages/contracts`](packages/contracts) | Foundry — CalldataDraft.sol |
-| [`packages/indexer`](packages/indexer) | Ponder v0.16 — event indexer + REST API |
-| [`packages/web`](packages/web) | Next.js — frontend application |
-| [`packages/e2e`](packages/e2e) | Vitest — end-to-end test suite |
+| [`apps/contracts`](apps/contracts) | Foundry — CalldataRegistry.sol |
+| [`apps/indexer`](apps/indexer) | Ponder v0.16 — event indexer + REST API |
+| [`apps/web`](apps/web) | Next.js — frontend application |
+| [`apps/e2e`](apps/e2e) | Vitest — end-to-end test suite |
 
 ## Quick Start
 
@@ -31,10 +31,10 @@ pnpm install
 
 ```bash
 # Contract tests (28 tests)
-cd packages/contracts && forge test
+cd apps/contracts && forge test
 
 # E2E tests — spins up Anvil, deploys, runs indexer (11 tests)
-cd packages/e2e && pnpm test
+cd apps/e2e && pnpm test
 ```
 
 ### Local development
@@ -44,7 +44,7 @@ Start Anvil and deploy:
 ```bash
 anvil --block-time 1
 
-cd packages/contracts
+cd apps/contracts
 forge script script/Deploy.s.sol --sig "deploySimple()" \
   --rpc-url http://127.0.0.1:8545 \
   --broadcast \
@@ -54,16 +54,16 @@ forge script script/Deploy.s.sol --sig "deploySimple()" \
 Start the indexer:
 
 ```bash
-cd packages/indexer
+cd apps/indexer
 PONDER_RPC_URL_31337=http://127.0.0.1:8545 \
-CDR_REGISTRY_ADDRESS=<deployed-address> \
+REGISTRY_ADDRESS=<deployed-address> \
 pnpm dev
 ```
 
 Start the frontend:
 
 ```bash
-cd packages/web
+cd apps/web
 NEXT_PUBLIC_REGISTRY_ADDRESS=<deployed-address> \
 pnpm dev
 ```
@@ -119,7 +119,7 @@ The contract deploys to the same address on every chain using Arachnid's determi
 ## Architecture
 
 ```
-Proposer → publishDraft() → CalldataDraft (on-chain)
+Proposer → publishDraft() → CalldataRegistry (on-chain)
                                     ↓
                             DraftPublished event
                                     ↓
