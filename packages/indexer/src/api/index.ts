@@ -17,6 +17,16 @@ function serialize<T>(data: T): T {
   ) as T;
 }
 
+// Helper: parse draft rows with JSON-stringified array fields
+function parseDraft(row: any) {
+  return {
+    ...serialize(row),
+    targets: typeof row.targets === "string" ? JSON.parse(row.targets) : row.targets,
+    values: typeof row.values === "string" ? JSON.parse(row.values) : row.values,
+    calldatas: typeof row.calldatas === "string" ? JSON.parse(row.calldatas) : row.calldatas,
+  };
+}
+
 // Get all orgs
 app.get("/orgs", async (c) => {
   const orgs = await db.select().from(org);
@@ -41,15 +51,20 @@ app.get("/drafts", async (c) => {
     .orderBy(desc(draft.id))
     .limit(limit)
     .offset(offset);
-  return c.json(serialize(drafts));
+  return c.json(drafts.map(parseDraft));
 });
 
 // Get draft by ID
 app.get("/drafts/:id", async (c) => {
-  const draftId = BigInt(c.req.param("id"));
+  let draftId: bigint;
+  try {
+    draftId = BigInt(c.req.param("id"));
+  } catch {
+    return c.json({ error: "Invalid draft ID" }, 400);
+  }
   const result = await db.select().from(draft).where(eq(draft.id, draftId));
   if (result.length === 0) return c.json({ error: "Not found" }, 404);
-  return c.json(serialize(result[0]));
+  return c.json(parseDraft(result[0]));
 });
 
 // Get drafts by org
@@ -60,7 +75,7 @@ app.get("/orgs/:address/drafts", async (c) => {
     .from(draft)
     .where(eq(draft.org, address))
     .orderBy(desc(draft.id));
-  return c.json(serialize(drafts));
+  return c.json(drafts.map(parseDraft));
 });
 
 // Get drafts by proposer
@@ -71,18 +86,23 @@ app.get("/proposers/:address/drafts", async (c) => {
     .from(draft)
     .where(eq(draft.proposer, address))
     .orderBy(desc(draft.id));
-  return c.json(serialize(drafts));
+  return c.json(drafts.map(parseDraft));
 });
 
 // Get version history (children of a draft)
 app.get("/drafts/:id/forks", async (c) => {
-  const draftId = BigInt(c.req.param("id"));
+  let draftId: bigint;
+  try {
+    draftId = BigInt(c.req.param("id"));
+  } catch {
+    return c.json({ error: "Invalid draft ID" }, 400);
+  }
   const forks = await db
     .select()
     .from(draft)
     .where(eq(draft.previousVersion, draftId))
     .orderBy(desc(draft.id));
-  return c.json(serialize(forks));
+  return c.json(forks.map(parseDraft));
 });
 
 export default app;

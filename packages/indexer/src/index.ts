@@ -14,8 +14,16 @@ ponder.on("CalldataRegistry:OrgRegistered", async ({ event, context }) => {
 
 ponder.on("CalldataRegistry:OrgUpdated", async ({ event, context }) => {
   await context.db
-    .update(org, { id: event.args.orgId })
-    .set({
+    .insert(org)
+    .values({
+      id: event.args.orgId,
+      name: event.args.name,
+      metadataURI: event.args.metadataURI,
+      registered: true,
+      registeredAt: event.block.timestamp,
+      updatedAt: event.block.timestamp,
+    })
+    .onConflictDoUpdate({
       name: event.args.name,
       metadataURI: event.args.metadataURI,
       updatedAt: event.block.timestamp,

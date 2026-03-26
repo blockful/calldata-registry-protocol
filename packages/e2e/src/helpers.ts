@@ -104,6 +104,8 @@ export async function deployContracts(rpcUrl: string): Promise<`0x${string}`> {
       [
         "script",
         "script/Deploy.s.sol",
+        "--sig",
+        "deploySimple()",
         "--rpc-url",
         rpcUrl,
         "--broadcast",
@@ -138,21 +140,23 @@ export async function deployContracts(rpcUrl: string): Promise<`0x${string}`> {
       }
 
       // Try parsing from broadcast JSON first (most reliable)
-      try {
-        const broadcastPath = path.join(
-          CONTRACTS_DIR,
-          "broadcast/Deploy.s.sol/31337/run-latest.json"
-        );
-        const raw = await readFile(broadcastPath, "utf-8");
-        const data = JSON.parse(raw);
-        for (const tx of data.transactions) {
-          if (tx.transactionType === "CREATE") {
-            resolve(tx.contractAddress as `0x${string}`);
-            return;
+      const broadcastPaths = [
+        path.join(CONTRACTS_DIR, "broadcast/Deploy.s.sol/31337/deploySimple-latest.json"),
+        path.join(CONTRACTS_DIR, "broadcast/Deploy.s.sol/31337/run-latest.json"),
+      ];
+      for (const broadcastPath of broadcastPaths) {
+        try {
+          const raw = await readFile(broadcastPath, "utf-8");
+          const data = JSON.parse(raw);
+          for (const tx of data.transactions) {
+            if (tx.transactionType === "CREATE") {
+              resolve(tx.contractAddress as `0x${string}`);
+              return;
+            }
           }
+        } catch {
+          // Try next path
         }
-      } catch {
-        // Fall back to parsing stdout
       }
 
       // Parse from stdout
@@ -170,6 +174,15 @@ export async function deployContracts(rpcUrl: string): Promise<`0x${string}`> {
       );
       if (match2) {
         resolve(match2[1] as `0x${string}`);
+        return;
+      }
+
+      // Try "deployed ... at:" pattern
+      const match3 = stdout.match(
+        /deployed.*at:\s*(0x[0-9a-fA-F]{40})/i
+      );
+      if (match3) {
+        resolve(match3[1] as `0x${string}`);
         return;
       }
 

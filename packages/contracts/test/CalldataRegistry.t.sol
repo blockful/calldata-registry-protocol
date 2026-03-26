@@ -5,6 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {CalldataRegistry} from "../src/CalldataRegistry.sol";
 import {ICalldataRegistry} from "../src/ICalldataRegistry.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {MockERC1271Wallet} from "./mocks/MockERC1271Wallet.sol";
 
 contract CalldataRegistryTest is Test {
     CalldataRegistry public registry;
@@ -444,6 +445,177 @@ contract CalldataRegistryTest is Test {
 
         (, , , , , , , uint256 prevVersion, ) = registry.getDraft(secondId);
         assertEq(prevVersion, firstId);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Additional Tests
+    // ═══════════════════════════════════════════════════════════════════
+
+    function testPublishDraftUnregisteredOrg() public {
+        // Drafts can target any org address, even one that is not registered
+        address unregisteredOrg = makeAddr("unregisteredOrg");
+        (, , bool registered) = registry.getOrg(unregisteredOrg);
+        assertFalse(registered);
+
+        vm.prank(proposer);
+        uint256 draftId = registry.publishDraft(unregisteredOrg, targets, values, calldatas, description, extraData, 0);
+        assertEq(draftId, 1);
+
+        (address dOrg, , , , , , , , ) = registry.getDraft(draftId);
+        assertEq(dOrg, unregisteredOrg);
+    }
+
+    function testPublishDraftBySigWithContractWallet() public {
+        // Create a contract wallet whose owner is the proposer EOA
+        MockERC1271Wallet wallet = new MockERC1271Wallet(proposer);
+
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 nonce = registry.nonces(address(wallet));
+
+        // Sign as the EOA owner of the wallet, but set proposer = wallet address
+        bytes memory sig = _signDraft(
+            proposerKey,
+            orgOwner,
+            targets,
+            values,
+            calldatas,
+            description,
+            extraData,
+            0,
+            address(wallet),
+            nonce,
+            deadline
+        );
+
+        vm.prank(relayer);
+        uint256 draftId = registry.publishDraftBySig(
+            orgOwner, targets, values, calldatas, description, extraData, 0, address(wallet), deadline, sig
+        );
+
+        assertEq(draftId, 1);
+
+        (, address dProposer, , , , , , , ) = registry.getDraft(draftId);
+        assertEq(dProposer, address(wallet));
+
+        // Nonce of the contract wallet should have been consumed
+        assertEq(registry.nonces(address(wallet)), 1);
+    }
+
+    function testPublishDraftBySigTamperedParameters() public {
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 nonce = registry.nonces(proposer);
+
+        // Sign with the original description
+        bytes memory sig = _signDraft(
+            proposerKey,
+            orgOwner,
+            targets,
+            values,
+            calldatas,
+            description,
+            extraData,
+            0,
+            proposer,
+            nonce,
+            deadline
+        );
+
+        // Call with a different description
+        vm.prank(relayer);
+        vm.expectRevert(CalldataRegistry.InvalidSignature.selector);
+        registry.publishDraftBySig(
+            orgOwner, targets, values, calldatas, "Tampered description", extraData, 0, proposer, deadline, sig
+        );
+    }
+
+    function testPublishDraftBySigDeadlineExact() public {
+        // deadline == block.timestamp should be valid (not expired)
+        uint256 deadline = block.timestamp;
+        uint256 nonce = registry.nonces(proposer);
+
+        bytes memory sig = _signDraft(
+            proposerKey,
+            orgOwner,
+            targets,
+            values,
+            calldatas,
+            description,
+            extraData,
+            0,
+            proposer,
+            nonce,
+            deadline
+        );
+
+        vm.prank(relayer);
+        uint256 draftId = registry.publishDraftBySig(
+            orgOwner, targets, values, calldatas, description, extraData, 0, proposer, deadline, sig
+        );
+        assertEq(draftId, 1);
+    }
+
+    function testTypehashMatchesExpected() public view {
+        bytes32 expected = keccak256(
+            "DraftPublish(address org,bytes32 actionsHash,bytes32 descriptionHash,bytes32 extraDataHash,uint256 previousVersion,address proposer,uint256 nonce,uint256 deadline)"
+        );
+        assertEq(registry.DRAFT_PUBLISH_TYPEHASH(), expected);
+    }
+
+    function testGetDraftZero() public view {
+        (
+            address dOrg,
+            address dProposer,
+            address[] memory dTargets,
+            uint256[] memory dValues,
+            bytes[] memory dCalldatas,
+            string memory dDescription,
+            bytes memory dExtraData,
+            uint256 dPreviousVersion,
+            uint256 dTimestamp
+        ) = registry.getDraft(0);
+
+        assertEq(dOrg, address(0));
+        assertEq(dProposer, address(0));
+        assertEq(dTargets.length, 0);
+        assertEq(dValues.length, 0);
+        assertEq(dCalldatas.length, 0);
+        assertEq(dDescription, "");
+        assertEq(dExtraData, hex"");
+        assertEq(dPreviousVersion, 0);
+        assertEq(dTimestamp, 0);
+    }
+
+    function testMultipleProposersIndependentNonces() public {
+        (address proposerB, uint256 proposerBKey) = makeAddrAndKey("proposerB");
+
+        // Both start at nonce 0
+        assertEq(registry.nonces(proposer), 0);
+        assertEq(registry.nonces(proposerB), 0);
+
+        // Proposer A publishes via BySig
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory sigA = _signDraft(
+            proposerKey, orgOwner, targets, values, calldatas, description, extraData, 0, proposer, 0, deadline
+        );
+
+        vm.prank(relayer);
+        registry.publishDraftBySig(orgOwner, targets, values, calldatas, description, extraData, 0, proposer, deadline, sigA);
+
+        // Proposer A's nonce incremented, proposer B's unchanged
+        assertEq(registry.nonces(proposer), 1);
+        assertEq(registry.nonces(proposerB), 0);
+
+        // Proposer B publishes via BySig
+        bytes memory sigB = _signDraft(
+            proposerBKey, orgOwner, targets, values, calldatas, description, extraData, 0, proposerB, 0, deadline
+        );
+
+        vm.prank(relayer);
+        registry.publishDraftBySig(orgOwner, targets, values, calldatas, description, extraData, 0, proposerB, deadline, sigB);
+
+        // Each nonce is independent
+        assertEq(registry.nonces(proposer), 1);
+        assertEq(registry.nonces(proposerB), 1);
     }
 
     // ═══════════════════════════════════════════════════════════════════

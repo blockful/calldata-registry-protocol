@@ -9,11 +9,11 @@ import {
   useReadContract,
   useWaitForTransactionReceipt,
 } from "wagmi";
-import { parseEther, encodePacked } from "viem";
+import { parseEther, keccak256, encodeAbiParameters, toBytes, stringToBytes } from "viem";
 import {
   calldataRegistryAbi,
   EIP712_DOMAIN,
-  PUBLISH_DRAFT_TYPES,
+  DRAFT_PUBLISH_TYPES,
 } from "@/abi/CalldataRegistry";
 import { REGISTRY_ADDRESS } from "@/config/wagmi";
 
@@ -63,6 +63,7 @@ function NewDraftForm() {
     abi: calldataRegistryAbi,
     functionName: "nonces",
     args: address ? [address] : undefined,
+    query: { enabled: !!address },
   });
 
   function addCall() {
@@ -126,6 +127,14 @@ function NewDraftForm() {
       (c) => (c.calldata || "0x") as `0x${string}`
     );
 
+    const actionsHash = keccak256(
+      encodeAbiParameters(
+        [{ type: "address[]" }, { type: "uint256[]" }, { type: "bytes[]" }],
+        [targets, values, calldatas]
+      )
+    );
+    const descriptionHash = keccak256(stringToBytes(description));
+    const extraDataHash = keccak256(toBytes((extraData || "0x") as `0x${string}`));
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
 
     signTypedData({
@@ -134,18 +143,16 @@ function NewDraftForm() {
         chainId: chainId,
         verifyingContract: REGISTRY_ADDRESS,
       },
-      types: PUBLISH_DRAFT_TYPES,
-      primaryType: "PublishDraft",
+      types: DRAFT_PUBLISH_TYPES,
+      primaryType: "DraftPublish",
       message: {
         org: org as `0x${string}`,
-        targets,
-        values,
-        calldatas: calldatas.map((c) => encodePacked(["bytes"], [c])),
-        description,
-        extraData: (extraData || "0x") as `0x${string}`,
+        actionsHash,
+        descriptionHash,
+        extraDataHash,
         previousVersion: BigInt(previousVersion || "0"),
         proposer: address,
-        nonce: nonce as bigint,
+        nonce: nonce ?? BigInt(0),
         deadline,
       },
     });
@@ -377,11 +384,26 @@ function NewDraftForm() {
         {signature && (
           <div className="rounded-lg border border-green-900/50 bg-green-950/30 p-3">
             <p className="mb-2 text-sm text-green-400">
-              Signature created. Share with a relayer to publish gaslessly:
+              Signature created. Share the following with a relayer to publish gaslessly:
             </p>
-            <code className="block break-all rounded bg-neutral-800 p-2 font-mono text-xs text-neutral-300">
-              {signature}
-            </code>
+            <pre className="block overflow-x-auto whitespace-pre-wrap break-all rounded bg-neutral-800 p-2 font-mono text-xs text-neutral-300">
+              {JSON.stringify(
+                {
+                  org,
+                  targets: calls.map((c) => c.target),
+                  values: calls.map((c) => c.value),
+                  calldatas: calls.map((c) => c.calldata || "0x"),
+                  description,
+                  extraData: extraData || "0x",
+                  previousVersion: previousVersion || "0",
+                  proposer: address,
+                  deadline: String(Math.floor(Date.now() / 1000) + 3600),
+                  signature,
+                },
+                null,
+                2
+              )}
+            </pre>
           </div>
         )}
       </div>

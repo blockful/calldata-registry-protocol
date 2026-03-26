@@ -130,14 +130,12 @@ export const EIP712_DOMAIN = {
   version: "1",
 } as const;
 
-export const PUBLISH_DRAFT_TYPES = {
-  PublishDraft: [
+export const DRAFT_PUBLISH_TYPES = {
+  DraftPublish: [
     { name: "org", type: "address" },
-    { name: "targets", type: "address[]" },
-    { name: "values", type: "uint256[]" },
-    { name: "calldatas", type: "bytes[]" },
-    { name: "description", type: "string" },
-    { name: "extraData", type: "bytes" },
+    { name: "actionsHash", type: "bytes32" },
+    { name: "descriptionHash", type: "bytes32" },
+    { name: "extraDataHash", type: "bytes32" },
     { name: "previousVersion", type: "uint256" },
     { name: "proposer", type: "address" },
     { name: "nonce", type: "uint256" },

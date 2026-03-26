@@ -14,7 +14,7 @@ export default createConfig({
     CalldataRegistry: {
       abi: CalldataRegistryAbi,
       chain: "anvil",
-      address: process.env.CDR_REGISTRY_ADDRESS as `0x${string}` ?? "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+      address: (process.env.CDR_REGISTRY_ADDRESS ?? "0x5FbDB2315678afecb367f032d93F642f64180aa3") as `0x${string}`,
       startBlock: 0,
     },
   },
