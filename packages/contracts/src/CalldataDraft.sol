@@ -4,9 +4,9 @@ pragma solidity ^0.8.24;
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
-import {ICalldataRegistry} from "./ICalldataRegistry.sol";
+import {ICalldataDraft} from "./ICalldataDraft.sol";
 
-contract CalldataRegistry is ICalldataRegistry, EIP712, Nonces {
+contract CalldataDraft is ICalldataDraft, EIP712, Nonces {
     // ── EIP-712 Type Hash ───────────────────────────────────────────────
 
     bytes32 public constant DRAFT_PUBLISH_TYPEHASH = keccak256(
@@ -50,7 +50,7 @@ contract CalldataRegistry is ICalldataRegistry, EIP712, Nonces {
 
     // ── Constructor ─────────────────────────────────────────────────────
 
-    constructor() EIP712("CalldataRegistry", "1") {}
+    constructor() EIP712("CalldataDraft", "1") {}
 
     // ── Org Management ──────────────────────────────────────────────────
 
@@ -174,7 +174,7 @@ contract CalldataRegistry is ICalldataRegistry, EIP712, Nonces {
 
     // ── Nonces Override ────────────────────────────────────────────────
 
-    function nonces(address owner) public view override(ICalldataRegistry, Nonces) returns (uint256) {
+    function nonces(address owner) public view override(ICalldataDraft, Nonces) returns (uint256) {
         return super.nonces(owner);
     }
 

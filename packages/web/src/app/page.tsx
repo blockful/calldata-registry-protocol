@@ -31,7 +31,7 @@ export default function HomePage() {
   return (
     <div className="max-w-[1080px] mx-auto px-6 py-16">
       <h1 className="text-2xl font-light text-white mb-2">
-        Calldata Registry
+        Calldata Draft
       </h1>
       <p className="text-sm text-white/50 mb-16">
         A decentralized registry for publishing, reviewing, and versioning

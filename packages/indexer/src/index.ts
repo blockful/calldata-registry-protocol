@@ -1,7 +1,7 @@
 import { ponder } from "ponder:registry";
 import { org, draft } from "ponder:schema";
 
-ponder.on("CalldataRegistry:OrgRegistered", async ({ event, context }) => {
+ponder.on("CalldataDraft:OrgRegistered", async ({ event, context }) => {
   await context.db.insert(org).values({
     id: event.args.orgId,
     name: event.args.name,
@@ -12,7 +12,7 @@ ponder.on("CalldataRegistry:OrgRegistered", async ({ event, context }) => {
   });
 });
 
-ponder.on("CalldataRegistry:OrgUpdated", async ({ event, context }) => {
+ponder.on("CalldataDraft:OrgUpdated", async ({ event, context }) => {
   await context.db
     .insert(org)
     .values({
@@ -30,11 +30,11 @@ ponder.on("CalldataRegistry:OrgUpdated", async ({ event, context }) => {
     });
 });
 
-ponder.on("CalldataRegistry:DraftPublished", async ({ event, context }) => {
+ponder.on("CalldataDraft:DraftPublished", async ({ event, context }) => {
   // Read full draft data from contract
   const draftData = await context.client.readContract({
-    abi: context.contracts.CalldataRegistry.abi,
-    address: context.contracts.CalldataRegistry.address!,
+    abi: context.contracts.CalldataDraft.abi,
+    address: context.contracts.CalldataDraft.address!,
     functionName: "getDraft",
     args: [event.args.draftId],
   });

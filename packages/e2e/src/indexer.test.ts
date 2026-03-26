@@ -16,7 +16,7 @@ import {
   waitForReady,
   cleanup,
 } from "./helpers.js";
-import { CalldataRegistryAbi } from "./abi.js";
+import { CalldataDraftAbi } from "./abi.js";
 import type { ChildProcess } from "node:child_process";
 
 const PRIVATE_KEY_0 =
@@ -62,7 +62,7 @@ describe("Ponder Indexer Integration", () => {
     // Register an org
     let hash = await wallet0.writeContract({
       address: contractAddress,
-      abi: CalldataRegistryAbi,
+      abi: CalldataDraftAbi,
       functionName: "registerOrg",
       args: ["Indexer Test Org", "https://example.com/indexer-org"],
     });
@@ -71,7 +71,7 @@ describe("Ponder Indexer Integration", () => {
     // Publish draft #1
     hash = await wallet0.writeContract({
       address: contractAddress,
-      abi: CalldataRegistryAbi,
+      abi: CalldataDraftAbi,
       functionName: "publishDraft",
       args: [
         account0.address,
@@ -88,7 +88,7 @@ describe("Ponder Indexer Integration", () => {
     // Publish draft #2 (fork of #1)
     hash = await wallet0.writeContract({
       address: contractAddress,
-      abi: CalldataRegistryAbi,
+      abi: CalldataDraftAbi,
       functionName: "publishDraft",
       args: [
         account0.address,

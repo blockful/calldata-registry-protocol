@@ -19,7 +19,7 @@ export function Header() {
         <div className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2">
             <span className="text-sm font-semibold tracking-tight">
-              Calldata Registry
+              Calldata Draft
             </span>
           </Link>
 

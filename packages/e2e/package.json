@@ -1,5 +1,5 @@
 {
-  "name": "@cdr/e2e",
+  "name": "@cdp/e2e",
   "private": true,
   "type": "module",
   "scripts": {

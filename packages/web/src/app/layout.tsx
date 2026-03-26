@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Calldata Registry",
+  title: "Calldata Draft",
   description:
     "On-chain registry for governance calldata review. Publish, review, and verify proposal calldata before execution.",
 };

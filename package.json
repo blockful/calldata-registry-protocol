@@ -1,5 +1,5 @@
 {
-  "name": "calldata-review-protocol",
+  "name": "calldata-draft-protocol",
   "private": true,
   "scripts": {
     "build": "pnpm -r build",

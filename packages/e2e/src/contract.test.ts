@@ -13,7 +13,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
 import { startAnvil, deployContracts, cleanup } from "./helpers.js";
-import { CalldataRegistryAbi } from "./abi.js";
+import { CalldataDraftAbi } from "./abi.js";
 import type { ChildProcess } from "node:child_process";
 
 // Anvil default accounts
@@ -25,7 +25,7 @@ const PRIVATE_KEY_1 =
 const account0 = privateKeyToAccount(PRIVATE_KEY_0);
 const account1 = privateKeyToAccount(PRIVATE_KEY_1);
 
-describe("CalldataRegistry Contract", () => {
+describe("CalldataDraft Contract", () => {
   let anvilProcess: ChildProcess;
   let rpcUrl: string;
   let contractAddress: Address;
@@ -78,7 +78,7 @@ describe("CalldataRegistry Contract", () => {
   it("should register an org", async () => {
     const hash = await wallet0.writeContract({
       address: contractAddress,
-      abi: CalldataRegistryAbi,
+      abi: CalldataDraftAbi,
       functionName: "registerOrg",
       args: ["Test Org", "https://example.com/meta"],
     });
@@ -86,7 +86,7 @@ describe("CalldataRegistry Contract", () => {
 
     const [name, metadataURI, registered] = await publicClient.readContract({
       address: contractAddress,
-      abi: CalldataRegistryAbi,
+      abi: CalldataDraftAbi,
       functionName: "getOrg",
       args: [account0.address],
     });
@@ -99,7 +99,7 @@ describe("CalldataRegistry Contract", () => {
   it("should update an org", async () => {
     const hash = await wallet0.writeContract({
       address: contractAddress,
-      abi: CalldataRegistryAbi,
+      abi: CalldataDraftAbi,
       functionName: "updateOrg",
       args: ["Updated Org", "https://example.com/updated"],
     });
@@ -107,7 +107,7 @@ describe("CalldataRegistry Contract", () => {
 
     const [name, metadataURI, registered] = await publicClient.readContract({
       address: contractAddress,
-      abi: CalldataRegistryAbi,
+      abi: CalldataDraftAbi,
       functionName: "getOrg",
       args: [account0.address],
     });
@@ -131,7 +131,7 @@ describe("CalldataRegistry Contract", () => {
 
     const hash = await wallet0.writeContract({
       address: contractAddress,
-      abi: CalldataRegistryAbi,
+      abi: CalldataDraftAbi,
       functionName: "publishDraft",
       args: [
         account0.address,
@@ -148,7 +148,7 @@ describe("CalldataRegistry Contract", () => {
     // Read back draft #1
     const draft = await publicClient.readContract({
       address: contractAddress,
-      abi: CalldataRegistryAbi,
+      abi: CalldataDraftAbi,
       functionName: "getDraft",
       args: [1n],
     });
@@ -176,7 +176,7 @@ describe("CalldataRegistry Contract", () => {
 
     const hash = await wallet0.writeContract({
       address: contractAddress,
-      abi: CalldataRegistryAbi,
+      abi: CalldataDraftAbi,
       functionName: "publishDraft",
       args: [
         account0.address,
@@ -193,7 +193,7 @@ describe("CalldataRegistry Contract", () => {
     // Read back draft #2
     const draft = await publicClient.readContract({
       address: contractAddress,
-      abi: CalldataRegistryAbi,
+      abi: CalldataDraftAbi,
       functionName: "getDraft",
       args: [2n],
     });
@@ -217,7 +217,7 @@ describe("CalldataRegistry Contract", () => {
     // Get the proposer's nonce
     const nonce = await publicClient.readContract({
       address: contractAddress,
-      abi: CalldataRegistryAbi,
+      abi: CalldataDraftAbi,
       functionName: "nonces",
       args: [account1.address],
     });
@@ -244,7 +244,7 @@ describe("CalldataRegistry Contract", () => {
     // Read the EIP-712 domain from the contract
     const domainData = await publicClient.readContract({
       address: contractAddress,
-      abi: CalldataRegistryAbi,
+      abi: CalldataDraftAbi,
       functionName: "eip712Domain",
     });
 
@@ -258,7 +258,7 @@ describe("CalldataRegistry Contract", () => {
     // Get the DRAFT_PUBLISH_TYPEHASH for reference
     const DRAFT_PUBLISH_TYPEHASH = await publicClient.readContract({
       address: contractAddress,
-      abi: CalldataRegistryAbi,
+      abi: CalldataDraftAbi,
       functionName: "DRAFT_PUBLISH_TYPEHASH",
     });
 
@@ -293,7 +293,7 @@ describe("CalldataRegistry Contract", () => {
     // account0 relays the tx on behalf of account1
     const hash = await wallet0.writeContract({
       address: contractAddress,
-      abi: CalldataRegistryAbi,
+      abi: CalldataDraftAbi,
       functionName: "publishDraftBySig",
       args: [
         account0.address,
@@ -313,7 +313,7 @@ describe("CalldataRegistry Contract", () => {
     // Read back draft #3
     const draft = await publicClient.readContract({
       address: contractAddress,
-      abi: CalldataRegistryAbi,
+      abi: CalldataDraftAbi,
       functionName: "getDraft",
       args: [3n],
     });
@@ -330,7 +330,7 @@ describe("CalldataRegistry Contract", () => {
     const [orgName, orgMeta, orgRegistered] =
       await publicClient.readContract({
         address: contractAddress,
-        abi: CalldataRegistryAbi,
+        abi: CalldataDraftAbi,
         functionName: "getOrg",
         args: [account0.address],
       });
@@ -340,7 +340,7 @@ describe("CalldataRegistry Contract", () => {
     // Verify draft 1 still intact
     const d1 = await publicClient.readContract({
       address: contractAddress,
-      abi: CalldataRegistryAbi,
+      abi: CalldataDraftAbi,
       functionName: "getDraft",
       args: [1n],
     });
@@ -350,7 +350,7 @@ describe("CalldataRegistry Contract", () => {
     // Verify draft 2 chains to draft 1
     const d2 = await publicClient.readContract({
       address: contractAddress,
-      abi: CalldataRegistryAbi,
+      abi: CalldataDraftAbi,
       functionName: "getDraft",
       args: [2n],
     });
@@ -359,7 +359,7 @@ describe("CalldataRegistry Contract", () => {
     // Verify draft 3 was from sig
     const d3 = await publicClient.readContract({
       address: contractAddress,
-      abi: CalldataRegistryAbi,
+      abi: CalldataDraftAbi,
       functionName: "getDraft",
       args: [3n],
     });

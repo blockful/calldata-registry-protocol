@@ -6,8 +6,8 @@ import {
   useWriteContract,
   useWaitForTransactionReceipt,
 } from "wagmi";
-import { calldataRegistryAbi } from "@/abi/CalldataRegistry";
-import { REGISTRY_ADDRESS } from "@/config/wagmi";
+import { calldataDraftAbi } from "@/abi/CalldataDraft";
+import { CONTRACT_ADDRESS } from "@/config/wagmi";
 
 export default function RegisterOrgPage() {
   const { isConnected } = useAccount();
@@ -29,8 +29,8 @@ export default function RegisterOrgPage() {
     if (!isConnected) return;
 
     writeContract({
-      address: REGISTRY_ADDRESS,
-      abi: calldataRegistryAbi,
+      address: CONTRACT_ADDRESS,
+      abi: calldataDraftAbi,
       functionName: isUpdate ? "updateOrg" : "registerOrg",
       args: [name, metadataURI],
     });

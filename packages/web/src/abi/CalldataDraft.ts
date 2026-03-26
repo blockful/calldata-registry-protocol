@@ -1,4 +1,4 @@
-export const calldataRegistryAbi = [
+export const calldataDraftAbi = [
   // ── Events ──────────────────────────────────────────────────────────
   {
     type: "event",
@@ -126,7 +126,7 @@ export const calldataRegistryAbi = [
 
 // EIP-712 domain for gasless signature publishing
 export const EIP712_DOMAIN = {
-  name: "CalldataRegistry",
+  name: "CalldataDraft",
   version: "1",
 } as const;
 

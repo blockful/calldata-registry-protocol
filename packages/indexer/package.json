@@ -1,5 +1,5 @@
 {
-  "name": "@cdr/indexer",
+  "name": "@cdp/indexer",
   "private": true,
   "type": "module",
   "scripts": {

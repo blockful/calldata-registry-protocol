@@ -1,4 +1,4 @@
-export const CalldataRegistryAbi = [
+export const CalldataDraftAbi = [
   {
     type: "constructor",
     inputs: [],

@@ -170,7 +170,7 @@ export async function deployContracts(rpcUrl: string): Promise<`0x${string}`> {
 
       // Try another stdout pattern
       const match2 = stdout.match(
-        /new CalldataRegistry@(0x[0-9a-fA-F]{40})/i
+        /new CalldataDraft@(0x[0-9a-fA-F]{40})/i
       );
       if (match2) {
         resolve(match2[1] as `0x${string}`);
@@ -220,7 +220,7 @@ export async function startPonder(
     const env: Record<string, string> = {
       ...(process.env as Record<string, string>),
       PONDER_RPC_URL_31337: rpcUrl,
-      CDR_REGISTRY_ADDRESS: contractAddress,
+      CDP_CONTRACT_ADDRESS: contractAddress,
     };
 
     const proc = spawn(

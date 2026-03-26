@@ -17,11 +17,11 @@ import {
   stringToBytes,
 } from "viem";
 import {
-  calldataRegistryAbi,
+  calldataDraftAbi,
   EIP712_DOMAIN,
   DRAFT_PUBLISH_TYPES,
-} from "@/abi/CalldataRegistry";
-import { REGISTRY_ADDRESS } from "@/config/wagmi";
+} from "@/abi/CalldataDraft";
+import { CONTRACT_ADDRESS } from "@/config/wagmi";
 import { ActionBuilder } from "@/components/ActionBuilder";
 import type { ActionItem } from "@/components/ActionBuilder";
 
@@ -292,8 +292,8 @@ function NewDraftForm() {
 
   // Read nonce for gasless
   const { data: nonce } = useReadContract({
-    address: REGISTRY_ADDRESS,
-    abi: calldataRegistryAbi,
+    address: CONTRACT_ADDRESS,
+    abi: calldataDraftAbi,
     functionName: "nonces",
     args: address ? [address] : undefined,
     query: { enabled: !!address },
@@ -335,8 +335,8 @@ function NewDraftForm() {
     const { targets, values, calldatas } = buildArgs();
 
     writeContract({
-      address: REGISTRY_ADDRESS,
-      abi: calldataRegistryAbi,
+      address: CONTRACT_ADDRESS,
+      abi: calldataDraftAbi,
       functionName: "publishDraft",
       args: [
         org as `0x${string}`,
@@ -371,7 +371,7 @@ function NewDraftForm() {
       domain: {
         ...EIP712_DOMAIN,
         chainId: chainId,
-        verifyingContract: REGISTRY_ADDRESS,
+        verifyingContract: CONTRACT_ADDRESS,
       },
       types: DRAFT_PUBLISH_TYPES,
       primaryType: "DraftPublish",

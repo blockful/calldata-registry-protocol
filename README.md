@@ -1,4 +1,4 @@
-# Calldata Registry Protocol
+# Calldata Draft Protocol
 
 On-chain registry for governance calldata review. Publish, review, and verify proposal calldata before execution.
 
@@ -8,7 +8,7 @@ Governance calldata has no public review step. This protocol provides a fully on
 
 | Package | Description |
 |---------|-------------|
-| [`packages/contracts`](packages/contracts) | Foundry — CalldataRegistry.sol |
+| [`packages/contracts`](packages/contracts) | Foundry — CalldataDraft.sol |
 | [`packages/indexer`](packages/indexer) | Ponder v0.16 — event indexer + REST API |
 | [`packages/web`](packages/web) | Next.js — frontend application |
 | [`packages/e2e`](packages/e2e) | Vitest — end-to-end test suite |
@@ -119,7 +119,7 @@ The contract deploys to the same address on every chain using Arachnid's determi
 ## Architecture
 
 ```
-Proposer → publishDraft() → CalldataRegistry (on-chain)
+Proposer → publishDraft() → CalldataDraft (on-chain)
                                     ↓
                             DraftPublished event
                                     ↓

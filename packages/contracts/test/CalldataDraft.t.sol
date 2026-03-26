@@ -2,13 +2,13 @@
 pragma solidity ^0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
-import {CalldataRegistry} from "../src/CalldataRegistry.sol";
-import {ICalldataRegistry} from "../src/ICalldataRegistry.sol";
+import {CalldataDraft} from "../src/CalldataDraft.sol";
+import {ICalldataDraft} from "../src/ICalldataDraft.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {MockERC1271Wallet} from "./mocks/MockERC1271Wallet.sol";
 
-contract CalldataRegistryTest is Test {
-    CalldataRegistry public registry;
+contract CalldataDraftTest is Test {
+    CalldataDraft public registry;
 
     address public orgOwner;
     address public proposer;
@@ -23,7 +23,7 @@ contract CalldataRegistryTest is Test {
     bytes extraData;
 
     function setUp() public {
-        registry = new CalldataRegistry();
+        registry = new CalldataDraft();
 
         orgOwner = makeAddr("orgOwner");
         (proposer, proposerKey) = makeAddrAndKey("proposer");
@@ -53,7 +53,7 @@ contract CalldataRegistryTest is Test {
     function testRegisterOrg() public {
         vm.prank(orgOwner);
         vm.expectEmit(true, false, false, true, address(registry));
-        emit ICalldataRegistry.OrgRegistered(orgOwner, "TestOrg", "ipfs://metadata");
+        emit ICalldataDraft.OrgRegistered(orgOwner, "TestOrg", "ipfs://metadata");
         registry.registerOrg("TestOrg", "ipfs://metadata");
 
         (string memory name, string memory metadataURI, bool registered) = registry.getOrg(orgOwner);
@@ -66,7 +66,7 @@ contract CalldataRegistryTest is Test {
         vm.startPrank(orgOwner);
         registry.registerOrg("TestOrg", "ipfs://metadata");
 
-        vm.expectRevert(abi.encodeWithSelector(CalldataRegistry.OrgAlreadyRegistered.selector, orgOwner));
+        vm.expectRevert(abi.encodeWithSelector(CalldataDraft.OrgAlreadyRegistered.selector, orgOwner));
         registry.registerOrg("TestOrg2", "ipfs://metadata2");
         vm.stopPrank();
     }
@@ -80,7 +80,7 @@ contract CalldataRegistryTest is Test {
         registry.registerOrg("TestOrg", "ipfs://metadata");
 
         vm.expectEmit(true, false, false, true, address(registry));
-        emit ICalldataRegistry.OrgUpdated(orgOwner, "UpdatedOrg", "ipfs://updated");
+        emit ICalldataDraft.OrgUpdated(orgOwner, "UpdatedOrg", "ipfs://updated");
         registry.updateOrg("UpdatedOrg", "ipfs://updated");
         vm.stopPrank();
 
@@ -92,7 +92,7 @@ contract CalldataRegistryTest is Test {
 
     function testUpdateOrgNotRegistered() public {
         vm.prank(orgOwner);
-        vm.expectRevert(abi.encodeWithSelector(CalldataRegistry.OrgNotRegistered.selector, orgOwner));
+        vm.expectRevert(abi.encodeWithSelector(CalldataDraft.OrgNotRegistered.selector, orgOwner));
         registry.updateOrg("TestOrg", "ipfs://metadata");
     }
 
@@ -103,7 +103,7 @@ contract CalldataRegistryTest is Test {
     function testPublishDraft() public {
         vm.prank(proposer);
         vm.expectEmit(true, true, true, true, address(registry));
-        emit ICalldataRegistry.DraftPublished(1, orgOwner, proposer, 0);
+        emit ICalldataDraft.DraftPublished(1, orgOwner, proposer, 0);
         uint256 draftId = registry.publishDraft(orgOwner, targets, values, calldatas, description, extraData, 0);
 
         assertEq(draftId, 1);
@@ -146,7 +146,7 @@ contract CalldataRegistryTest is Test {
         // Publish second draft referencing the first
         vm.prank(proposer);
         vm.expectEmit(true, true, true, true, address(registry));
-        emit ICalldataRegistry.DraftPublished(2, orgOwner, proposer, firstDraftId);
+        emit ICalldataDraft.DraftPublished(2, orgOwner, proposer, firstDraftId);
         uint256 secondDraftId =
             registry.publishDraft(orgOwner, targets, values, calldatas, "Updated description", extraData, firstDraftId);
 
@@ -158,7 +158,7 @@ contract CalldataRegistryTest is Test {
 
     function testPublishDraftInvalidPreviousVersion() public {
         vm.prank(proposer);
-        vm.expectRevert(abi.encodeWithSelector(CalldataRegistry.InvalidPreviousVersion.selector, 999));
+        vm.expectRevert(abi.encodeWithSelector(CalldataDraft.InvalidPreviousVersion.selector, 999));
         registry.publishDraft(orgOwner, targets, values, calldatas, description, extraData, 999);
     }
 
@@ -167,7 +167,7 @@ contract CalldataRegistryTest is Test {
         wrongValues[0] = 1 ether;
 
         vm.prank(proposer);
-        vm.expectRevert(CalldataRegistry.ArrayLengthMismatch.selector);
+        vm.expectRevert(CalldataDraft.ArrayLengthMismatch.selector);
         registry.publishDraft(orgOwner, targets, wrongValues, calldatas, description, extraData, 0);
     }
 
@@ -178,7 +178,7 @@ contract CalldataRegistryTest is Test {
         wrongCalldatas[2] = hex"cc";
 
         vm.prank(proposer);
-        vm.expectRevert(CalldataRegistry.ArrayLengthMismatch.selector);
+        vm.expectRevert(CalldataDraft.ArrayLengthMismatch.selector);
         registry.publishDraft(orgOwner, targets, values, wrongCalldatas, description, extraData, 0);
     }
 
@@ -206,7 +206,7 @@ contract CalldataRegistryTest is Test {
 
         vm.prank(relayer);
         vm.expectEmit(true, true, true, true, address(registry));
-        emit ICalldataRegistry.DraftPublished(1, orgOwner, proposer, 0);
+        emit ICalldataDraft.DraftPublished(1, orgOwner, proposer, 0);
         uint256 draftId =
             registry.publishDraftBySig(orgOwner, targets, values, calldatas, description, extraData, 0, proposer, deadline, sig);
 
@@ -237,7 +237,7 @@ contract CalldataRegistryTest is Test {
         );
 
         vm.prank(relayer);
-        vm.expectRevert(abi.encodeWithSelector(CalldataRegistry.DeadlineExpired.selector, deadline));
+        vm.expectRevert(abi.encodeWithSelector(CalldataDraft.DeadlineExpired.selector, deadline));
         registry.publishDraftBySig(orgOwner, targets, values, calldatas, description, extraData, 0, proposer, deadline, sig);
     }
 
@@ -261,7 +261,7 @@ contract CalldataRegistryTest is Test {
         );
 
         vm.prank(relayer);
-        vm.expectRevert(CalldataRegistry.InvalidSignature.selector);
+        vm.expectRevert(CalldataDraft.InvalidSignature.selector);
         registry.publishDraftBySig(orgOwner, targets, values, calldatas, description, extraData, 0, proposer, deadline, sig);
     }
 
@@ -289,7 +289,7 @@ contract CalldataRegistryTest is Test {
 
         // Replay with same signature should fail (nonce already consumed, signature won't match new nonce)
         vm.prank(relayer);
-        vm.expectRevert(CalldataRegistry.InvalidSignature.selector);
+        vm.expectRevert(CalldataDraft.InvalidSignature.selector);
         registry.publishDraftBySig(orgOwner, targets, values, calldatas, description, extraData, 0, proposer, deadline, sig);
     }
 
@@ -522,7 +522,7 @@ contract CalldataRegistryTest is Test {
 
         // Call with a different description
         vm.prank(relayer);
-        vm.expectRevert(CalldataRegistry.InvalidSignature.selector);
+        vm.expectRevert(CalldataDraft.InvalidSignature.selector);
         registry.publishDraftBySig(
             orgOwner, targets, values, calldatas, "Tampered description", extraData, 0, proposer, deadline, sig
         );
