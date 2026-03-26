@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Calldata Registry",
   description:
-    "On-chain registry for governance calldata review. Publish, review, and verify proposal calldata before execution.",
+    "On-chain registry for publishing, reviewing, and verifying calldata before execution.",
 };
 
 export default function RootLayout({

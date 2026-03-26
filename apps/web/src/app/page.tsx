@@ -34,8 +34,8 @@ export default function HomePage() {
         Calldata Registry
       </h1>
       <p className="text-sm text-white/50 mb-16">
-        A decentralized registry for publishing, reviewing, and versioning
-        on-chain calldata drafts before execution.
+        Publish calldata on-chain for public review. Decode, simulate, and verify
+        before signing.
       </p>
 
       <section>

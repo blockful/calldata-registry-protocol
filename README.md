@@ -1,8 +1,22 @@
 # Calldata Registry Protocol
 
-On-chain registry for governance calldata review. Publish, review, and verify proposal calldata before execution.
+Fully on-chain registry for publishing, reviewing, and verifying calldata before execution.
 
-Governance calldata has no public review step. This protocol provides a fully on-chain registry where anyone can publish proposal calldata drafts for public review before execution. All calldata, metadata, and authorship are stored on-chain. Drafts are versioned and forkable.
+## Problem
+
+When someone shares calldata — in a forum post, a group chat, or a transaction queue — there is no standard way to verify that the calldata reviewed is the calldata executed. Reviewers eyeball hex strings. Signers trust screenshots. There is no permanent, public, verifiable record tying what was reviewed to what was signed.
+
+The Calldata Registry solves this by providing a single on-chain source of truth. Anyone can publish calldata drafts for public review. Anyone can read them back, simulate them, reproduce them, and compare them against what actually gets executed. If the calldata changes between review and execution, the discrepancy is publicly visible on-chain.
+
+## How it works
+
+1. **Publish** — An author publishes a calldata draft on-chain: targets, values, calldatas, description, and metadata. The registry assigns a permanent draft ID.
+2. **Review** — Reviewers read the calldata directly from the contract. They can decode it, simulate it against a fork, and verify the expected state changes.
+3. **Verify** — When the calldata is executed (as a transaction, a multisig batch, or anything else), anyone can compare the executed calldata against the published draft. Match or mismatch — publicly visible.
+
+Drafts are **versioned and forkable**. Anyone can publish a new version referencing an existing draft, creating a public revision graph. A security researcher can fork a draft with a fix. Another team can fork it with a different approach. All traceable.
+
+**Gasless publishing** is supported via EIP-712 signatures (EOA and smart contract wallets via EIP-1271). Authors sign, relayers submit.
 
 ## Apps
 
@@ -71,7 +85,7 @@ pnpm dev
 ## Contract Interface
 
 ```solidity
-// Permissionless draft publishing
+// Publish calldata for public review
 function publishDraft(
     address org,
     address[] calldata targets,
@@ -108,26 +122,26 @@ function nonces(address proposer) external view returns (uint256);
 
 ## Deployment
 
-The deploy script supports deterministic multi-chain deployment via CREATE2:
+Deterministic multi-chain deployment via CREATE2:
 
 ```bash
 forge script script/Deploy.s.sol --rpc-url <rpc> --broadcast --private-key <key>
 ```
 
-The contract deploys to the same address on every chain using Arachnid's deterministic deployer.
+Same address on every chain using Arachnid's deterministic deployer.
 
 ## Architecture
 
 ```
-Proposer → publishDraft() → CalldataRegistry (on-chain)
-                                    ↓
-                            DraftPublished event
-                                    ↓
-                            Ponder Indexer → REST API
-                                    ↓
-                            Frontend (browse, review, fork)
-                                    ↓
-Voters/Signers → compare getDraft() with Governor.propose() args
+Author → publishDraft() → CalldataRegistry (on-chain)
+                                  ↓
+                          DraftPublished event
+                                  ↓
+                          Ponder Indexer → REST API
+                                  ↓
+                          Frontend (browse, decode, simulate, fork)
+                                  ↓
+Reviewers/Signers → compare getDraft() with executed calldata
 ```
 
 ## License
