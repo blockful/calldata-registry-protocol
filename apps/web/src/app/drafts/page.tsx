@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, Building2, GitBranch, MessageSquare } from "lucide-react";
+import { ArrowUpRight, GitBranch, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,39 +18,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  mockExecutors,
-  mockProposals,
-  type ProposalStatus,
-} from "@/lib/mock-proposals";
+import { mockDrafts } from "@/lib/mock-proposals";
 
-const statusLabel: Record<ProposalStatus, string> = {
-  draft: "Draft",
-  in_review: "In review",
-  approved: "Approved",
-  rejected: "Rejected",
-};
-
-const statusClassName: Record<ProposalStatus, string> = {
-  draft: "border-border bg-muted text-muted-foreground",
-  in_review: "border-sky-500/30 bg-sky-500/10 text-sky-200",
-  approved: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
-  rejected: "border-red-500/30 bg-red-500/10 text-red-200",
-};
-
-function StatusBadge({ status }: { status: ProposalStatus }) {
-  return (
-    <Badge variant="outline" className={statusClassName[status]}>
-      {statusLabel[status]}
-    </Badge>
-  );
-}
-
-function getExecutorLabel(executorId: string) {
-  return (
-    mockExecutors.find((executor) => executor.id === executorId)?.label ??
-    executorId
-  );
+function shortAddress(value: string) {
+  if (value.length <= 18) return value;
+  return `${value.slice(0, 8)}...${value.slice(-6)}`;
 }
 
 export default function DraftsPage() {
@@ -61,17 +33,13 @@ export default function DraftsPage() {
           <div className="mb-3 flex flex-wrap gap-2">
             <Badge variant="secondary">
               <GitBranch className="size-3" />
-              Proposals
+              Drafts
             </Badge>
-            <Badge variant="outline">{mockExecutors.length} executors</Badge>
+            <Badge variant="outline">{mockDrafts.length} total</Badge>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            Proposal Registry
+            Draft Registry
           </h1>
-          <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-            A plain list of mocked proposals grouped by executor, version
-            history, and recorded reviews.
-          </p>
         </div>
         <Button nativeButton={false} render={<Link href="/" />}>
           <ArrowUpRight className="size-4" />
@@ -81,10 +49,8 @@ export default function DraftsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>All proposals</CardTitle>
-          <CardDescription>
-            Use the app view to filter by executor and inspect the graph.
-          </CardDescription>
+          <CardTitle>All drafts</CardTitle>
+          <CardDescription>Mocked draft records.</CardDescription>
           <CardAction>
             <Button
               variant="outline"
@@ -97,56 +63,50 @@ export default function DraftsPage() {
           </CardAction>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Proposal</TableHead>
-                <TableHead>Executor</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Versions</TableHead>
-                <TableHead>Reviews</TableHead>
-                <TableHead>Created</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockProposals.map((proposal) => (
-                <TableRow key={proposal.id}>
-                  <TableCell>
-                    <div className="grid gap-1">
-                      <span className="font-medium">{proposal.title}</span>
-                      <span className="font-mono text-xs text-muted-foreground">
-                        {proposal.id}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="inline-flex items-center gap-2">
-                      <Building2 className="size-4 text-muted-foreground" />
-                      {getExecutorLabel(proposal.executorId)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={proposal.status} />
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">
-                      <GitBranch className="size-3" />
-                      {proposal.versions.length}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">
-                      <MessageSquare className="size-3" />
-                      {proposal.reviews.length}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {proposal.createdAt}
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Draft</TableHead>
+                  <TableHead>Author</TableHead>
+                  <TableHead>Executor</TableHead>
+                  <TableHead>Timestamp</TableHead>
+                  <TableHead>Reviews</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {mockDrafts.map((draft) => (
+                  <TableRow key={draft.id}>
+                    <TableCell className="min-w-[260px]">
+                      <div className="grid gap-1">
+                        <span className="font-mono font-medium">
+                          Draft #{draft.id}
+                        </span>
+                        <span className="max-w-[34rem] truncate text-sm text-muted-foreground">
+                          {draft.description || "No description"}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {shortAddress(draft.proposer)}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {shortAddress(draft.executor)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      {draft.timestamp}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        <MessageSquare className="size-3" />
+                        {draft.reviews.length}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

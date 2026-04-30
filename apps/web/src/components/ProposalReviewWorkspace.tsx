@@ -1,13 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useAccount } from "wagmi";
 import {
-  Building2,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Code2,
   GitBranch,
+  GitFork,
   MessageSquare,
   Plus,
   Search,
@@ -17,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -25,12 +27,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
@@ -38,7 +34,6 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from "@/components/ui/sheet";
 import {
   Table,
@@ -57,49 +52,44 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
-  mockExecutors,
-  mockProposals,
+  mockDrafts,
   type CalldataAction,
-  type Proposal,
-  type ProposalStatus,
-  type ProposalVersion,
-  type Review,
+  type Draft,
+  type DraftReview,
   type ReviewDecision,
 } from "@/lib/mock-proposals";
 
-const statusLabel: Record<ProposalStatus, string> = {
-  draft: "Draft",
-  in_review: "In review",
-  approved: "Approved",
-  rejected: "Rejected",
+type DraftForm = {
+  executor: string;
+  description: string;
+  extraData: string;
+  previousVersion: string | null;
+  target: string;
+  value: string;
+  calldata: string;
 };
 
-const statusClassName: Record<ProposalStatus, string> = {
-  draft: "border-border bg-muted text-muted-foreground",
-  in_review: "border-sky-500/30 bg-sky-500/10 text-sky-200",
-  approved: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
-  rejected: "border-red-500/30 bg-red-500/10 text-red-200",
+const emptyAction: CalldataAction = {
+  id: "empty-action",
+  target: "",
+  value: "0",
+  calldata: "0x",
+};
+
+const emptyForm: DraftForm = {
+  executor: "",
+  description: "",
+  extraData: "0x",
+  previousVersion: null,
+  target: "",
+  value: "0",
+  calldata: "0x",
 };
 
 const decisionClassName: Record<ReviewDecision, string> = {
   approved: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
   rejected: "border-red-500/30 bg-red-500/10 text-red-200",
 };
-
-const emptyAction: CalldataAction = {
-  id: "new-action",
-  target: "",
-  value: "0",
-  calldata: "0x",
-};
-
-function StatusBadge({ status }: { status: ProposalStatus }) {
-  return (
-    <Badge variant="outline" className={statusClassName[status]}>
-      {statusLabel[status]}
-    </Badge>
-  );
-}
 
 function DecisionBadge({ decision }: { decision: ReviewDecision }) {
   const Icon = decision === "approved" ? CheckCircle2 : XCircle;
@@ -119,143 +109,295 @@ function selectorFromCalldata(calldata: string) {
 }
 
 function shortAddress(value: string) {
-  if (value.length <= 14) return value;
-  return `${value.slice(0, 6)}...${value.slice(-4)}`;
+  if (value.length <= 18) return value;
+  return `${value.slice(0, 8)}...${value.slice(-6)}`;
 }
 
-function getExecutorLabel(executorId: string) {
-  return (
-    mockExecutors.find((executor) => executor.id === executorId)?.label ??
-    executorId
+function reviewTotals(draft: Draft) {
+  return draft.reviews.reduce(
+    (totals, review) => ({
+      approved: totals.approved + (review.decision === "approved" ? 1 : 0),
+      rejected: totals.rejected + (review.decision === "rejected" ? 1 : 0),
+    }),
+    { approved: 0, rejected: 0 }
   );
 }
 
-function getSelectedVersion(proposal: Proposal, versionId: string) {
-  return (
-    proposal.versions.find((version) => version.id === versionId) ??
-    proposal.versions[proposal.versions.length - 1]
-  );
+function getDraftDepth(
+  draft: Draft,
+  byId: Map<string, Draft>,
+  seen = new Set<string>()
+): number {
+  if (!draft.previousVersion) return 0;
+  if (seen.has(draft.id)) return 0;
+
+  const parent = byId.get(draft.previousVersion);
+  if (!parent) return 0;
+
+  seen.add(draft.id);
+  return getDraftDepth(parent, byId, seen) + 1;
 }
 
-function ProposalList({
-  proposals,
-  selectedProposalId,
-  onSelect,
-}: {
-  proposals: Proposal[];
-  selectedProposalId: string;
-  onSelect: (proposalId: string) => void;
-}) {
+function getRootDraft(draft: Draft, byId: Map<string, Draft>) {
+  let current = draft;
+  const seen = new Set<string>();
+
+  while (current.previousVersion && !seen.has(current.id)) {
+    seen.add(current.id);
+    const parent = byId.get(current.previousVersion);
+    if (!parent) break;
+    current = parent;
+  }
+
+  return current;
+}
+
+function getDraftFamily(drafts: Draft[], selectedDraft: Draft) {
+  const byId = new Map(drafts.map((draft) => [draft.id, draft]));
+  const root = getRootDraft(selectedDraft, byId);
+  const childrenByParent = drafts.reduce((children, draft) => {
+    if (!draft.previousVersion) return children;
+    const current = children.get(draft.previousVersion) ?? [];
+    current.push(draft);
+    children.set(draft.previousVersion, current);
+    return children;
+  }, new Map<string, Draft[]>());
+
+  const family: Draft[] = [];
+  const queue = [root];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || family.some((draft) => draft.id === current.id)) continue;
+    family.push(current);
+    queue.push(...(childrenByParent.get(current.id) ?? []));
+  }
+
+  return family;
+}
+
+function layoutDrafts(drafts: Draft[]) {
+  const byId = new Map(drafts.map((draft) => [draft.id, draft]));
+  const draftsByDepth = new Map<number, Draft[]>();
+
+  for (const draft of drafts) {
+    const depth = getDraftDepth(draft, byId);
+    const current = draftsByDepth.get(depth) ?? [];
+    current.push(draft);
+    draftsByDepth.set(depth, current);
+  }
+
+  const maxDepth = Math.max(...draftsByDepth.keys(), 0);
+  const xStep = maxDepth === 0 ? 0 : 76 / maxDepth;
+
+  return drafts.map((draft) => {
+    const depth = getDraftDepth(draft, byId);
+    const siblings = draftsByDepth.get(depth) ?? [draft];
+    const siblingIndex = siblings.findIndex((item) => item.id === draft.id);
+
+    return {
+      ...draft,
+      depth,
+      x: maxDepth === 0 ? 50 : 12 + depth * xStep,
+      y: ((siblingIndex + 1) / (siblings.length + 1)) * 100,
+    };
+  });
+}
+
+function getNextDraftId(drafts: Draft[]) {
+  const maxNumericId = drafts.reduce((max, draft) => {
+    const value = Number(draft.id);
+    return Number.isFinite(value) ? Math.max(max, value) : max;
+  }, 0);
+
+  return String(maxNumericId + 1);
+}
+
+function getInitialAction(draft: Draft) {
+  return draft.actions[0] ?? emptyAction;
+}
+
+function DraftReviewsBadge({ draft }: { draft: Draft }) {
+  const totals = reviewTotals(draft);
+
   return (
-    <div className="space-y-2">
-      {proposals.map((proposal) => (
-        <Button
-          key={proposal.id}
-          type="button"
-          variant={proposal.id === selectedProposalId ? "secondary" : "ghost"}
-          className="h-auto w-full justify-start whitespace-normal rounded-lg px-3 py-3 text-left"
-          onClick={() => onSelect(proposal.id)}
-        >
-          <span className="flex min-w-0 flex-1 flex-col gap-2">
-            <span className="flex items-start justify-between gap-3">
-              <span className="min-w-0 truncate font-medium">
-                {proposal.title}
-              </span>
-              <span className="font-mono text-xs text-muted-foreground">
-                {proposal.id}
-              </span>
-            </span>
-            <span className="flex flex-wrap items-center gap-2">
-              <StatusBadge status={proposal.status} />
-              <Badge variant="outline">{proposal.versions.length} versions</Badge>
-              <Badge variant="outline">{proposal.reviews.length} reviews</Badge>
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {getExecutorLabel(proposal.executorId)}
-            </span>
-          </span>
-        </Button>
-      ))}
+    <div className="flex flex-wrap gap-1.5">
+      <Badge variant="outline">
+        <MessageSquare className="size-3" />
+        {draft.reviews.length}
+      </Badge>
+      <Badge variant="outline" className="text-emerald-200">
+        {totals.approved} approved
+      </Badge>
+      <Badge variant="outline" className="text-red-200">
+        {totals.rejected} rejected
+      </Badge>
     </div>
   );
 }
 
-function VersionGraph({
-  proposal,
-  selectedVersion,
+function DraftTable({
+  drafts,
+  selectedDraftId,
+  onSelect,
+  onFork,
+}: {
+  drafts: Draft[];
+  selectedDraftId: string;
+  onSelect: (draftId: string) => void;
+  onFork: (draft: Draft) => void;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Draft</TableHead>
+            <TableHead>Author</TableHead>
+            <TableHead>Executor</TableHead>
+            <TableHead>Timestamp</TableHead>
+            <TableHead>Reviews</TableHead>
+            <TableHead className="w-[92px]"></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {drafts.map((draft) => (
+            <TableRow
+              key={draft.id}
+              className={cn(
+                "cursor-pointer",
+                draft.id === selectedDraftId && "bg-muted/70"
+              )}
+              onClick={() => onSelect(draft.id)}
+            >
+              <TableCell className="min-w-[260px]">
+                <div className="grid gap-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-sm font-medium">
+                      Draft #{draft.id}
+                    </span>
+                    {draft.previousVersion ? (
+                      <Badge variant="outline">
+                        <GitBranch className="size-3" />
+                        from #{draft.previousVersion}
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <span className="max-w-[34rem] truncate text-sm text-muted-foreground">
+                    {draft.description || "No description"}
+                  </span>
+                </div>
+              </TableCell>
+              <TableCell className="font-mono text-xs">
+                {shortAddress(draft.proposer)}
+              </TableCell>
+              <TableCell className="font-mono text-xs">
+                {shortAddress(draft.executor)}
+              </TableCell>
+              <TableCell className="whitespace-nowrap text-muted-foreground">
+                {draft.timestamp}
+              </TableCell>
+              <TableCell>
+                <DraftReviewsBadge draft={draft} />
+              </TableCell>
+              <TableCell>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onFork(draft);
+                  }}
+                >
+                  <GitFork className="size-3.5" />
+                  Fork
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function DraftGraph({
+  drafts,
+  selectedDraft,
   onSelect,
 }: {
-  proposal: Proposal;
-  selectedVersion: ProposalVersion;
-  onSelect: (versionId: string) => void;
+  drafts: Draft[];
+  selectedDraft: Draft;
+  onSelect: (draftId: string) => void;
 }) {
-  const versionById = new Map(
-    proposal.versions.map((version) => [version.id, version])
-  );
+  const positionedDrafts = useMemo(() => layoutDrafts(drafts), [drafts]);
+  const byId = new Map(positionedDrafts.map((draft) => [draft.id, draft]));
 
   return (
-    <div className="relative h-[320px] overflow-hidden rounded-lg border bg-muted/20">
+    <div className="relative h-[300px] overflow-hidden rounded-lg border bg-muted/20">
       <svg
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 size-full"
         preserveAspectRatio="none"
         viewBox="0 0 100 100"
       >
-        {proposal.versions.flatMap((version) =>
-          version.parentIds.map((parentId) => {
-            const parent = versionById.get(parentId);
-            if (!parent) return null;
+        {positionedDrafts.map((draft) => {
+          if (!draft.previousVersion) return null;
 
-            const selected =
-              parent.id === selectedVersion.id || version.id === selectedVersion.id;
-            const midX = (parent.x + version.x) / 2;
+          const parent = byId.get(draft.previousVersion);
+          if (!parent) return null;
 
-            return (
-              <path
-                key={`${parentId}-${version.id}`}
-                d={`M ${parent.x} ${parent.y} C ${midX} ${parent.y}, ${midX} ${version.y}, ${version.x} ${version.y}`}
-                fill="none"
-                stroke={
-                  selected
-                    ? "oklch(0.72 0.16 154)"
-                    : "oklch(0.985 0 0 / 0.18)"
-                }
-                strokeLinecap="round"
-                strokeWidth={selected ? 0.9 : 0.55}
-              />
-            );
-          })
-        )}
+          const selected =
+            parent.id === selectedDraft.id || draft.id === selectedDraft.id;
+          const midX = (parent.x + draft.x) / 2;
+
+          return (
+            <path
+              key={`${draft.previousVersion}-${draft.id}`}
+              d={`M ${parent.x} ${parent.y} C ${midX} ${parent.y}, ${midX} ${draft.y}, ${draft.x} ${draft.y}`}
+              fill="none"
+              stroke={
+                selected
+                  ? "oklch(0.72 0.16 154)"
+                  : "oklch(0.985 0 0 / 0.18)"
+              }
+              strokeLinecap="round"
+              strokeWidth={selected ? 0.9 : 0.55}
+            />
+          );
+        })}
       </svg>
 
-      {proposal.versions.map((version) => {
-        const isSelected = version.id === selectedVersion.id;
+      {positionedDrafts.map((draft) => {
+        const isSelected = draft.id === selectedDraft.id;
+        const totals = reviewTotals(draft);
 
         return (
-          <Tooltip key={version.id}>
+          <Tooltip key={draft.id}>
             <TooltipTrigger
               render={
                 <Button
                   type="button"
                   variant={isSelected ? "default" : "outline"}
                   className={cn(
-                    "absolute h-14 w-[8.25rem] -translate-x-1/2 -translate-y-1/2 flex-col gap-0.5 rounded-lg px-2 py-2",
+                    "absolute h-16 w-[8.5rem] -translate-x-1/2 -translate-y-1/2 flex-col gap-0.5 rounded-lg px-2 py-2",
                     !isSelected && "bg-background/90 backdrop-blur"
                   )}
-                  style={{ left: `${version.x}%`, top: `${version.y}%` }}
-                  onClick={() => onSelect(version.id)}
+                  style={{ left: `${draft.x}%`, top: `${draft.y}%` }}
+                  onClick={() => onSelect(draft.id)}
                 />
               }
             >
               <span className="flex items-center gap-1 text-xs">
                 <GitBranch className="size-3" />
-                {version.label}
+                Draft #{draft.id}
               </span>
-              <span className="max-w-full truncate font-mono text-[0.68rem] opacity-70">
-                {version.id}
+              <span className="font-mono text-[0.68rem] opacity-75">
+                {totals.approved}/{draft.reviews.length} reviews
               </span>
             </TooltipTrigger>
-            <TooltipContent>{version.summary}</TooltipContent>
+            <TooltipContent>{draft.description || `Draft #${draft.id}`}</TooltipContent>
           </Tooltip>
         );
       })}
@@ -263,55 +405,62 @@ function VersionGraph({
   );
 }
 
-function VersionNavigator({
-  proposal,
-  selectedVersion,
+function DraftNavigator({
+  drafts,
+  selectedDraft,
   onSelect,
 }: {
-  proposal: Proposal;
-  selectedVersion: ProposalVersion;
-  onSelect: (versionId: string) => void;
+  drafts: Draft[];
+  selectedDraft: Draft;
+  onSelect: (draftId: string) => void;
 }) {
-  const selectedIndex = proposal.versions.findIndex(
-    (version) => version.id === selectedVersion.id
+  const parent = selectedDraft.previousVersion
+    ? drafts.find((draft) => draft.id === selectedDraft.previousVersion)
+    : undefined;
+  const children = drafts.filter(
+    (draft) => draft.previousVersion === selectedDraft.id
   );
-  const previousVersion = proposal.versions[selectedIndex - 1];
-  const nextVersion = proposal.versions[selectedIndex + 1];
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border bg-background/60 p-3 sm:flex-row sm:items-center sm:justify-between">
-      <div>
+      <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline" className="font-mono">
-            {selectedVersion.id}
+            Draft #{selectedDraft.id}
           </Badge>
-          <span className="text-sm font-medium">{selectedVersion.label}</span>
+          <Badge variant="outline">
+            {selectedDraft.previousVersion
+              ? `previous #${selectedDraft.previousVersion}`
+              : "root"}
+          </Badge>
         </div>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {selectedVersion.summary}
+        <p className="mt-2 truncate text-sm text-muted-foreground">
+          {selectedDraft.description || "No description"}
         </p>
       </div>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button
           type="button"
           variant="outline"
           size="sm"
-          disabled={!previousVersion}
-          onClick={() => previousVersion && onSelect(previousVersion.id)}
+          disabled={!parent}
+          onClick={() => parent && onSelect(parent.id)}
         >
           <ChevronLeft className="size-4" />
-          Previous
+          Parent
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!nextVersion}
-          onClick={() => nextVersion && onSelect(nextVersion.id)}
-        >
-          Next
-          <ChevronRight className="size-4" />
-        </Button>
+        {children.slice(0, 2).map((child) => (
+          <Button
+            key={child.id}
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => onSelect(child.id)}
+          >
+            Child #{child.id}
+            <ChevronRight className="size-4" />
+          </Button>
+        ))}
       </div>
     </div>
   );
@@ -355,32 +504,22 @@ function ActionList({
   );
 }
 
-function ReviewsList({
-  reviews,
-  selectedVersionId,
-}: {
-  reviews: Review[];
-  selectedVersionId: string;
-}) {
-  const visibleReviews = reviews.filter(
-    (review) => review.versionId === selectedVersionId
-  );
-
-  if (visibleReviews.length === 0) {
+function ReviewsList({ reviews }: { reviews: DraftReview[] }) {
+  if (reviews.length === 0) {
     return (
       <div className="rounded-lg border bg-background/60 p-3 text-sm text-muted-foreground">
-        No reviews recorded for this version.
+        No reviews recorded for this draft.
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
-      {visibleReviews.map((review) => (
+      {reviews.map((review) => (
         <div key={review.id} className="rounded-lg border bg-background/60 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="font-mono text-xs text-muted-foreground">
-              {review.reviewer}
+              {shortAddress(review.reviewer)}
             </span>
             <DecisionBadge decision={review.decision} />
           </div>
@@ -393,440 +532,325 @@ function ReviewsList({
 }
 
 export function ProposalReviewWorkspace() {
-  const [proposals, setProposals] = useState<Proposal[]>(mockProposals);
-  const [selectedExecutorId, setSelectedExecutorId] = useState(
-    mockExecutors[0].id
-  );
-  const [selectedProposalId, setSelectedProposalId] = useState(mockProposals[0].id);
-  const [selectedVersionId, setSelectedVersionId] = useState(
-    mockProposals[0].versions[mockProposals[0].versions.length - 1].id
-  );
+  const { address } = useAccount();
+  const [drafts, setDrafts] = useState<Draft[]>(mockDrafts);
+  const [selectedDraftId, setSelectedDraftId] = useState(mockDrafts[0].id);
   const [selectedActionId, setSelectedActionId] = useState(
-    mockProposals[0].versions[mockProposals[0].versions.length - 1].actions[0].id
+    getInitialAction(mockDrafts[0]).id
   );
   const [query, setQuery] = useState("");
   const [reviewer, setReviewer] = useState("0xReviewer");
   const [reviewComment, setReviewComment] = useState("");
-  const [newProposal, setNewProposal] = useState({
-    title: "",
-    description: "",
-    executorId: mockExecutors[0].id,
-    target: "",
-    value: "0",
-    calldata: "0x",
-  });
+  const [isDraftSheetOpen, setIsDraftSheetOpen] = useState(false);
+  const [draftForm, setDraftForm] = useState<DraftForm>(emptyForm);
 
-  const selectedProposal =
-    proposals.find((proposal) => proposal.id === selectedProposalId) ??
-    proposals[0];
-  const selectedVersion = getSelectedVersion(selectedProposal, selectedVersionId);
+  const selectedDraft =
+    drafts.find((draft) => draft.id === selectedDraftId) ?? drafts[0];
   const selectedAction =
-    selectedVersion.actions.find((action) => action.id === selectedActionId) ??
-    selectedVersion.actions[0] ??
+    selectedDraft.actions.find((action) => action.id === selectedActionId) ??
+    selectedDraft.actions[0] ??
     emptyAction;
 
-  const filteredProposals = useMemo(() => {
+  const filteredDrafts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return drafts;
 
-    return proposals.filter((proposal) => {
-      const matchesExecutor = proposal.executorId === selectedExecutorId;
-      const matchesQuery =
-        !normalizedQuery ||
-        [proposal.id, proposal.title, proposal.description]
-          .join(" ")
-          .toLowerCase()
-          .includes(normalizedQuery);
+    return drafts.filter((draft) =>
+      [
+        draft.id,
+        draft.executor,
+        draft.proposer,
+        draft.description,
+        draft.previousVersion ?? "",
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedQuery)
+    );
+  }, [drafts, query]);
 
-      return matchesExecutor && matchesQuery;
-    });
-  }, [proposals, query, selectedExecutorId]);
+  const draftFamily = useMemo(
+    () => getDraftFamily(drafts, selectedDraft),
+    [drafts, selectedDraft]
+  );
 
-  function selectProposal(proposalId: string) {
-    const proposal = proposals.find((item) => item.id === proposalId);
-    if (!proposal) return;
+  function selectDraft(draftId: string) {
+    const draft = drafts.find((item) => item.id === draftId);
+    if (!draft) return;
 
-    const nextVersion = proposal.versions[proposal.versions.length - 1];
-    setSelectedProposalId(proposal.id);
-    setSelectedExecutorId(proposal.executorId);
-    setSelectedVersionId(nextVersion.id);
-    setSelectedActionId(nextVersion.actions[0]?.id ?? "");
+    setSelectedDraftId(draft.id);
+    setSelectedActionId(getInitialAction(draft).id);
   }
 
-  function selectVersion(versionId: string) {
-    const version = selectedProposal.versions.find((item) => item.id === versionId);
-    if (!version) return;
+  function openCreateDraft() {
+    setDraftForm(emptyForm);
+    setIsDraftSheetOpen(true);
+  }
 
-    setSelectedVersionId(version.id);
-    setSelectedActionId(version.actions[0]?.id ?? "");
+  function openForkDraft(draft: Draft) {
+    const action = getInitialAction(draft);
+
+    setDraftForm({
+      executor: draft.executor,
+      description: "",
+      extraData: draft.extraData || "0x",
+      previousVersion: draft.id,
+      target: action.target,
+      value: action.value,
+      calldata: action.calldata,
+    });
+    setIsDraftSheetOpen(true);
   }
 
   function updateSelectedAction(nextAction: CalldataAction) {
-    setProposals((current) =>
-      current.map((proposal) => {
-        if (proposal.id !== selectedProposal.id) return proposal;
+    setDrafts((current) =>
+      current.map((draft) => {
+        if (draft.id !== selectedDraft.id) return draft;
 
         return {
-          ...proposal,
-          versions: proposal.versions.map((version) => {
-            if (version.id !== selectedVersion.id) return version;
-
-            return {
-              ...version,
-              actions: version.actions.map((action) =>
-                action.id === nextAction.id ? nextAction : action
-              ),
-            };
-          }),
+          ...draft,
+          actions: draft.actions.map((action) =>
+            action.id === nextAction.id ? nextAction : action
+          ),
         };
       })
     );
   }
 
   function submitReview(decision: ReviewDecision) {
-    if (!selectedAction.id || !reviewComment.trim()) return;
+    if (!reviewComment.trim()) return;
 
-    const nextReview: Review = {
+    const nextReview: DraftReview = {
       id: `review-${Date.now()}`,
-      versionId: selectedVersion.id,
-      actionId: selectedAction.id,
+      draftId: selectedDraft.id,
       reviewer,
       decision,
       comment: reviewComment.trim(),
       createdAt: "Just now",
     };
 
-    setProposals((current) =>
-      current.map((proposal) =>
-        proposal.id === selectedProposal.id
+    setDrafts((current) =>
+      current.map((draft) =>
+        draft.id === selectedDraft.id
           ? {
-              ...proposal,
-              status: decision,
-              reviews: [nextReview, ...proposal.reviews],
+              ...draft,
+              reviews: [nextReview, ...draft.reviews],
             }
-          : proposal
+          : draft
       )
     );
     setReviewComment("");
   }
 
-  function createProposal() {
+  function createDraft() {
     if (
-      !newProposal.title.trim() ||
-      !newProposal.target.trim() ||
-      !newProposal.calldata.trim()
+      !draftForm.executor.trim() ||
+      !draftForm.target.trim() ||
+      !draftForm.calldata.trim()
     ) {
       return;
     }
 
-    const index = proposals.length + 1;
-    const proposalId = `prop-${String(index).padStart(3, "0")}`;
-    const versionId = `${proposalId}-v1`;
-    const actionId = `${versionId}-a1`;
-    const proposal: Proposal = {
-      id: proposalId,
-      executorId: newProposal.executorId,
-      title: newProposal.title.trim(),
-      description: newProposal.description.trim() || "No description provided.",
-      status: "draft",
-      createdAt: "Just now",
-      versions: [
+    const draftId = getNextDraftId(drafts);
+    const actionId = `draft-${draftId}-action-1`;
+    const draft: Draft = {
+      id: draftId,
+      executor: draftForm.executor.trim(),
+      proposer: address ?? "not connected",
+      description: draftForm.description.trim(),
+      extraData: draftForm.extraData.trim() || "0x",
+      previousVersion: draftForm.previousVersion,
+      timestamp: "Just now",
+      actions: [
         {
-          id: versionId,
-          label: "v1",
-          parentIds: [],
-          author: "current user",
-          createdAt: "Just now",
-          summary: "Initial version created from the form.",
-          x: 50,
-          y: 50,
-          actions: [
-            {
-              id: actionId,
-              target: newProposal.target.trim(),
-              value: newProposal.value.trim() || "0",
-              calldata: newProposal.calldata.trim(),
-            },
-          ],
+          id: actionId,
+          target: draftForm.target.trim(),
+          value: draftForm.value.trim() || "0",
+          calldata: draftForm.calldata.trim(),
         },
       ],
       reviews: [],
     };
 
-    setProposals((current) => [proposal, ...current]);
-    setSelectedExecutorId(proposal.executorId);
-    setSelectedProposalId(proposal.id);
-    setSelectedVersionId(versionId);
+    setDrafts((current) => [draft, ...current]);
+    setSelectedDraftId(draft.id);
     setSelectedActionId(actionId);
-    setNewProposal({
-      title: "",
-      description: "",
-      executorId: newProposal.executorId,
-      target: "",
-      value: "0",
-      calldata: "0x",
-    });
+    setDraftForm(emptyForm);
+    setIsDraftSheetOpen(false);
   }
 
   return (
     <div className="mx-auto grid w-full max-w-[1440px] gap-6 px-4 py-6 sm:px-6 lg:px-8">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="mb-3 flex flex-wrap gap-2">
             <Badge variant="secondary">
-              <Building2 className="size-3" />
-              {getExecutorLabel(selectedProposal.executorId)}
+              <GitBranch className="size-3" />
+              Drafts
             </Badge>
-            <StatusBadge status={selectedProposal.status} />
+            <Badge variant="outline">{drafts.length} total</Badge>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            Calldata Proposal Review
+            Calldata Drafts
           </h1>
-          <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-            Create proposals, find them by executor, navigate their version
-            graph, edit calldata, and record review decisions.
-          </p>
         </div>
-
-        <Sheet>
-          <SheetTrigger
-            render={
-              <Button variant="outline" className="lg:hidden">
-                <Search className="size-4" />
-                Find proposals
-              </Button>
-            }
-          />
-          <SheetContent className="w-[min(92vw,420px)]">
-            <SheetHeader>
-              <SheetTitle>Find proposals</SheetTitle>
-              <SheetDescription>
-                Filter by executor and proposal text.
-              </SheetDescription>
-            </SheetHeader>
-            <div className="grid gap-4 px-4">
-              <ExecutorAndSearch
-                selectedExecutorId={selectedExecutorId}
-                setSelectedExecutorId={setSelectedExecutorId}
-                query={query}
-                setQuery={setQuery}
-              />
-              <ProposalList
-                proposals={filteredProposals}
-                selectedProposalId={selectedProposal.id}
-                onSelect={selectProposal}
-              />
-            </div>
-          </SheetContent>
-        </Sheet>
+        <Button type="button" onClick={openCreateDraft}>
+          <Plus className="size-4" />
+          Create draft
+        </Button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)_420px]">
-        <aside className="hidden lg:block">
-          <Card className="sticky top-20">
-            <CardHeader>
-              <CardTitle>Find proposals</CardTitle>
-              <CardDescription>
-                Filter the proposal list by executor.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <ExecutorAndSearch
-                selectedExecutorId={selectedExecutorId}
-                setSelectedExecutorId={setSelectedExecutorId}
-                query={query}
-                setQuery={setQuery}
+      <Card>
+        <CardHeader>
+          <CardTitle>All drafts</CardTitle>
+          <CardDescription>
+            Draft records from the mocked registry state.
+          </CardDescription>
+          <CardAction>
+            <div className="relative w-full min-w-[220px] sm:w-[320px]">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                className="pl-8"
+                placeholder="Draft, author, executor"
               />
-              <ProposalList
-                proposals={filteredProposals}
-                selectedProposalId={selectedProposal.id}
-                onSelect={selectProposal}
-              />
-            </CardContent>
-          </Card>
-        </aside>
+            </div>
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          <DraftTable
+            drafts={filteredDrafts}
+            selectedDraftId={selectedDraft.id}
+            onSelect={selectDraft}
+            onFork={openForkDraft}
+          />
+        </CardContent>
+      </Card>
 
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
         <main className="grid min-w-0 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Create proposal</CardTitle>
-              <CardDescription>
-                Start with one target, value, and calldata payload.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="new-title">Title</Label>
-                  <Input
-                    id="new-title"
-                    value={newProposal.title}
-                    onChange={(event) =>
-                      setNewProposal((current) => ({
-                        ...current,
-                        title: event.target.value,
-                      }))
-                    }
-                    placeholder="Proposal title"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Executor</Label>
-                  <Select
-                    value={newProposal.executorId}
-                    onValueChange={(value) => {
-                      if (typeof value === "string") {
-                        setNewProposal((current) => ({
-                          ...current,
-                          executorId: value,
-                        }));
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <span>{getExecutorLabel(newProposal.executorId)}</span>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {mockExecutors.map((executor) => (
-                        <SelectItem key={executor.id} value={executor.id}>
-                          {executor.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="new-description">Description</Label>
-                <Textarea
-                  id="new-description"
-                  value={newProposal.description}
-                  onChange={(event) =>
-                    setNewProposal((current) => ({
-                      ...current,
-                      description: event.target.value,
-                    }))
-                  }
-                  placeholder="What should reviewers verify?"
-                />
-              </div>
-              <div className="grid gap-4 md:grid-cols-[1fr_120px]">
-                <div className="grid gap-2">
-                  <Label htmlFor="new-target">Target</Label>
-                  <Input
-                    id="new-target"
-                    value={newProposal.target}
-                    onChange={(event) =>
-                      setNewProposal((current) => ({
-                        ...current,
-                        target: event.target.value,
-                      }))
-                    }
-                    className="font-mono"
-                    placeholder="0x..."
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="new-value">Value</Label>
-                  <Input
-                    id="new-value"
-                    value={newProposal.value}
-                    onChange={(event) =>
-                      setNewProposal((current) => ({
-                        ...current,
-                        value: event.target.value,
-                      }))
-                    }
-                    className="font-mono"
-                  />
-                </div>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="new-calldata">Calldata</Label>
-                <Textarea
-                  id="new-calldata"
-                  value={newProposal.calldata}
-                  onChange={(event) =>
-                    setNewProposal((current) => ({
-                      ...current,
-                      calldata: event.target.value,
-                    }))
-                  }
-                  className="min-h-[104px] font-mono text-xs"
-                />
-              </div>
-              <Button type="button" onClick={createProposal}>
-                <Plus className="size-4" />
-                Create proposal
-              </Button>
-            </CardContent>
-          </Card>
-
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <GitBranch className="size-4" />
-                Proposal history
+                Draft history
               </CardTitle>
               <CardDescription>
-                {selectedProposal.title} in{" "}
-                {getExecutorLabel(selectedProposal.executorId)}
+                Selected draft and versions linked through previousVersion.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <VersionGraph
-                proposal={selectedProposal}
-                selectedVersion={selectedVersion}
-                onSelect={selectVersion}
+              <DraftGraph
+                drafts={draftFamily}
+                selectedDraft={selectedDraft}
+                onSelect={selectDraft}
               />
-              <VersionNavigator
-                proposal={selectedProposal}
-                selectedVersion={selectedVersion}
-                onSelect={selectVersion}
+              <DraftNavigator
+                drafts={drafts}
+                selectedDraft={selectedDraft}
+                onSelect={selectDraft}
               />
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Version calldata</CardTitle>
+              <CardTitle>Selected draft</CardTitle>
+              <CardDescription className="font-mono">
+                Draft #{selectedDraft.id}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-1">
+                  <span className="text-xs text-muted-foreground">Author</span>
+                  <span className="break-all font-mono text-sm">
+                    {selectedDraft.proposer}
+                  </span>
+                </div>
+                <div className="grid gap-1">
+                  <span className="text-xs text-muted-foreground">Executor</span>
+                  <span className="break-all font-mono text-sm">
+                    {selectedDraft.executor}
+                  </span>
+                </div>
+                <div className="grid gap-1">
+                  <span className="text-xs text-muted-foreground">Timestamp</span>
+                  <span className="text-sm">{selectedDraft.timestamp}</span>
+                </div>
+                <div className="grid gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    Previous version
+                  </span>
+                  <span className="font-mono text-sm">
+                    {selectedDraft.previousVersion
+                      ? `#${selectedDraft.previousVersion}`
+                      : "0"}
+                  </span>
+                </div>
+              </div>
+              <Separator />
+              <div className="grid gap-2">
+                <span className="text-xs text-muted-foreground">Description</span>
+                <p className="text-sm">
+                  {selectedDraft.description || "No description"}
+                </p>
+              </div>
+              <div className="grid gap-2">
+                <span className="text-xs text-muted-foreground">Extra data</span>
+                <pre className="overflow-x-auto rounded-lg border bg-background/60 p-3 font-mono text-xs text-muted-foreground">
+                  {selectedDraft.extraData || "0x"}
+                </pre>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Calldata actions</CardTitle>
               <CardDescription>
-                Select a row to edit that calldata in the review panel.
+                Select a row to edit that action in the review panel.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Target</TableHead>
-                    <TableHead>Value</TableHead>
-                    <TableHead>Selector</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedVersion.actions.map((action, index) => (
-                    <TableRow
-                      key={action.id}
-                      className={cn(
-                        "cursor-pointer",
-                        action.id === selectedAction.id && "bg-muted/70"
-                      )}
-                      onClick={() => setSelectedActionId(action.id)}
-                    >
-                      <TableCell>{String(index + 1).padStart(2, "0")}</TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {shortAddress(action.target)}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {action.value}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {selectorFromCalldata(action.calldata)}
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Action</TableHead>
+                      <TableHead>Target</TableHead>
+                      <TableHead>Value</TableHead>
+                      <TableHead>Selector</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedDraft.actions.map((action, index) => (
+                      <TableRow
+                        key={action.id}
+                        className={cn(
+                          "cursor-pointer",
+                          action.id === selectedAction.id && "bg-muted/70"
+                        )}
+                        onClick={() => setSelectedActionId(action.id)}
+                      >
+                        <TableCell>
+                          {String(index + 1).padStart(2, "0")}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {shortAddress(action.target)}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {action.value}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {selectorFromCalldata(action.calldata)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </main>
@@ -838,11 +862,13 @@ export function ProposalReviewWorkspace() {
                 <Code2 className="size-4" />
                 Calldata review
               </CardTitle>
-              <CardDescription>{selectedVersion.id}</CardDescription>
+              <CardDescription className="font-mono">
+                Draft #{selectedDraft.id}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <ActionList
-                actions={selectedVersion.actions}
+                actions={selectedDraft.actions}
                 selectedActionId={selectedAction.id}
                 onSelect={setSelectedActionId}
               />
@@ -956,69 +982,137 @@ export function ProposalReviewWorkspace() {
           <Card>
             <CardHeader>
               <CardTitle>Reviews</CardTitle>
-              <CardDescription>
-                Decisions recorded for the selected version.
-              </CardDescription>
+              <CardDescription>Review records for this draft.</CardDescription>
             </CardHeader>
             <CardContent>
-              <ReviewsList
-                reviews={selectedProposal.reviews}
-                selectedVersionId={selectedVersion.id}
-              />
+              <ReviewsList reviews={selectedDraft.reviews} />
             </CardContent>
           </Card>
         </section>
       </div>
-    </div>
-  );
-}
 
-function ExecutorAndSearch({
-  selectedExecutorId,
-  setSelectedExecutorId,
-  query,
-  setQuery,
-}: {
-  selectedExecutorId: string;
-  setSelectedExecutorId: (executorId: string) => void;
-  query: string;
-  setQuery: (query: string) => void;
-}) {
-  return (
-    <div className="grid gap-4">
-      <div className="grid gap-2">
-        <Label>Executor</Label>
-        <Select
-          value={selectedExecutorId}
-          onValueChange={(value) => {
-            if (typeof value === "string") setSelectedExecutorId(value);
-          }}
-        >
-          <SelectTrigger className="w-full">
-            <span>{getExecutorLabel(selectedExecutorId)}</span>
-          </SelectTrigger>
-          <SelectContent>
-            {mockExecutors.map((executor) => (
-              <SelectItem key={executor.id} value={executor.id}>
-                {executor.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="proposal-search">Search</Label>
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            id="proposal-search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            className="pl-8"
-            placeholder="Proposal title or id"
-          />
-        </div>
-      </div>
+      <Sheet open={isDraftSheetOpen} onOpenChange={setIsDraftSheetOpen}>
+        <SheetContent className="w-[min(94vw,520px)] overflow-y-auto sm:max-w-[520px]">
+          <SheetHeader>
+            <SheetTitle>
+              {draftForm.previousVersion ? "Fork draft" : "Create draft"}
+            </SheetTitle>
+            <SheetDescription>
+              {draftForm.previousVersion
+                ? `previousVersion = ${draftForm.previousVersion}`
+                : "previousVersion = 0"}
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="grid gap-4 px-4 pb-4">
+            <div className="grid gap-2">
+              <Label htmlFor="new-executor">Executor address or ENS</Label>
+              <Input
+                id="new-executor"
+                value={draftForm.executor}
+                onChange={(event) =>
+                  setDraftForm((current) => ({
+                    ...current,
+                    executor: event.target.value,
+                  }))
+                }
+                className="font-mono"
+                placeholder="0x... or name.eth"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="new-description">Description</Label>
+              <Textarea
+                id="new-description"
+                value={draftForm.description}
+                onChange={(event) =>
+                  setDraftForm((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
+                placeholder="Markdown description"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="new-extra-data">Extra data</Label>
+              <Input
+                id="new-extra-data"
+                value={draftForm.extraData}
+                onChange={(event) =>
+                  setDraftForm((current) => ({
+                    ...current,
+                    extraData: event.target.value,
+                  }))
+                }
+                className="font-mono"
+              />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-[1fr_120px]">
+              <div className="grid gap-2">
+                <Label htmlFor="new-target">Target</Label>
+                <Input
+                  id="new-target"
+                  value={draftForm.target}
+                  onChange={(event) =>
+                    setDraftForm((current) => ({
+                      ...current,
+                      target: event.target.value,
+                    }))
+                  }
+                  className="font-mono"
+                  placeholder="0x..."
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="new-value">Value</Label>
+                <Input
+                  id="new-value"
+                  value={draftForm.value}
+                  onChange={(event) =>
+                    setDraftForm((current) => ({
+                      ...current,
+                      value: event.target.value,
+                    }))
+                  }
+                  className="font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="new-calldata">Calldata</Label>
+              <Textarea
+                id="new-calldata"
+                value={draftForm.calldata}
+                onChange={(event) =>
+                  setDraftForm((current) => ({
+                    ...current,
+                    calldata: event.target.value,
+                  }))
+                }
+                className="min-h-[140px] font-mono text-xs"
+              />
+            </div>
+
+            <Button
+              type="button"
+              onClick={createDraft}
+              disabled={
+                !draftForm.executor.trim() ||
+                !draftForm.target.trim() ||
+                !draftForm.calldata.trim()
+              }
+            >
+              <Plus className="size-4" />
+              {draftForm.previousVersion ? "Create fork" : "Create draft"}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

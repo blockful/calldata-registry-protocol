@@ -14,8 +14,8 @@ import {
 import { ConnectButton } from "./ConnectButton";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Review", icon: ShieldCheck },
-  { href: "/drafts", label: "Drafts", icon: ScrollText },
+  { href: "/", label: "Drafts", icon: ShieldCheck },
+  { href: "/drafts", label: "Registry", icon: ScrollText },
 ];
 
 export function Header() {

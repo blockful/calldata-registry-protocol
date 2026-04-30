@@ -1,12 +1,4 @@
-export type ProposalStatus = "draft" | "in_review" | "approved" | "rejected";
-
 export type ReviewDecision = "approved" | "rejected";
-
-export interface Executor {
-  id: string;
-  label: string;
-  address: string;
-}
 
 export interface CalldataAction {
   id: string;
@@ -15,251 +7,164 @@ export interface CalldataAction {
   calldata: string;
 }
 
-export interface ProposalVersion {
+export interface DraftReview {
   id: string;
-  label: string;
-  parentIds: string[];
-  author: string;
-  createdAt: string;
-  summary: string;
-  x: number;
-  y: number;
-  actions: CalldataAction[];
-}
-
-export interface Review {
-  id: string;
-  versionId: string;
-  actionId: string;
+  draftId: string;
   reviewer: string;
   decision: ReviewDecision;
   comment: string;
   createdAt: string;
 }
 
-export interface Proposal {
+export interface Draft {
   id: string;
-  executorId: string;
-  title: string;
+  executor: string;
+  proposer: string;
   description: string;
-  status: ProposalStatus;
-  createdAt: string;
-  versions: ProposalVersion[];
-  reviews: Review[];
+  extraData: string;
+  previousVersion: string | null;
+  timestamp: string;
+  actions: CalldataAction[];
+  reviews: DraftReview[];
 }
 
-export const mockExecutors: Executor[] = [
+export const mockDrafts: Draft[] = [
   {
-    id: "executor-a",
-    label: "Executor A",
-    address: "0x5b38Da6a701c568545dCfcB03FcB875f56beddC4",
-  },
-  {
-    id: "executor-b",
-    label: "Executor B",
-    address: "0x4200000000000000000000000000000000000007",
-  },
-  {
-    id: "executor-c",
-    label: "Executor C",
-    address: "0x9fC3da866e7DF3a1c57adE1a97c9f00a70f010c8",
-  },
-];
-
-export const mockProposals: Proposal[] = [
-  {
-    id: "prop-001",
-    executorId: "executor-a",
-    title: "Parameter update",
+    id: "1",
+    executor: "0x5b38Da6a701c568545dCfcB03FcB875f56beddC4",
+    proposer: "0x8E3c1B4A0E04fC3D5f4d2f822a9aD48a2f0b19D4",
     description:
-      "Updates one parameter and publishes the exact calldata for review.",
-    status: "in_review",
-    createdAt: "Apr 28, 2026",
-    versions: [
+      "Updates one executor parameter and publishes the exact calldata for review.",
+    extraData: "0x",
+    previousVersion: null,
+    timestamp: "Apr 28, 2026 14:12",
+    actions: [
       {
-        id: "prop-001-v1",
-        label: "v1",
-        parentIds: [],
-        author: "0x8E3c...19D4",
-        createdAt: "Apr 28, 2026",
-        summary: "Initial calldata submitted by the proposer.",
-        x: 22,
-        y: 50,
-        actions: [
-          {
-            id: "prop-001-v1-a1",
-            target: "0x1111111254EEB25477B68fb85Ed929f73A960582",
-            value: "0",
-            calldata:
-              "0x7f39b370000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb480000000000000000000000000000000000000000000000000000000000000023",
-          },
-        ],
-      },
-      {
-        id: "prop-001-v2",
-        label: "v2",
-        parentIds: ["prop-001-v1"],
-        author: "0x8E3c...19D4",
-        createdAt: "Apr 29, 2026",
-        summary: "Updated calldata after review comments.",
-        x: 58,
-        y: 50,
-        actions: [
-          {
-            id: "prop-001-v2-a1",
-            target: "0x1111111254EEB25477B68fb85Ed929f73A960582",
-            value: "0",
-            calldata:
-              "0x7f39b370000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48000000000000000000000000000000000000000000000000000000000000002a",
-          },
-        ],
+        id: "draft-1-action-1",
+        target: "0x1111111254EEB25477B68fb85Ed929f73A960582",
+        value: "0",
+        calldata:
+          "0x7f39b370000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb480000000000000000000000000000000000000000000000000000000000000023",
       },
     ],
     reviews: [
       {
-        id: "review-001",
-        versionId: "prop-001-v1",
-        actionId: "prop-001-v1-a1",
-        reviewer: "0x5F91...bE21",
+        id: "review-1",
+        draftId: "1",
+        reviewer: "0x5F917cA8a4a2E6B1c0e55070F508A2a41713bE21",
         decision: "rejected",
         comment: "The submitted calldata does not match the intended value.",
-        createdAt: "Apr 28, 2026",
+        createdAt: "Apr 28, 2026 16:40",
       },
+    ],
+  },
+  {
+    id: "2",
+    executor: "0x5b38Da6a701c568545dCfcB03FcB875f56beddC4",
+    proposer: "0x8E3c1B4A0E04fC3D5f4d2f822a9aD48a2f0b19D4",
+    description: "Updated calldata after review comments on draft #1.",
+    extraData: "0x",
+    previousVersion: "1",
+    timestamp: "Apr 29, 2026 09:05",
+    actions: [
       {
-        id: "review-002",
-        versionId: "prop-001-v2",
-        actionId: "prop-001-v2-a1",
-        reviewer: "0x5F91...bE21",
+        id: "draft-2-action-1",
+        target: "0x1111111254EEB25477B68fb85Ed929f73A960582",
+        value: "0",
+        calldata:
+          "0x7f39b370000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48000000000000000000000000000000000000000000000000000000000000002a",
+      },
+    ],
+    reviews: [
+      {
+        id: "review-2",
+        draftId: "2",
+        reviewer: "0x5F917cA8a4a2E6B1c0e55070F508A2a41713bE21",
         decision: "approved",
         comment: "The updated calldata matches the reviewed value.",
-        createdAt: "Apr 29, 2026",
+        createdAt: "Apr 29, 2026 10:11",
       },
     ],
   },
   {
-    id: "prop-002",
-    executorId: "executor-b",
-    title: "Signer rotation",
-    description:
-      "Publishes calldata for rotating one signer and updating the owner set.",
-    status: "draft",
-    createdAt: "Apr 29, 2026",
-    versions: [
+    id: "3",
+    executor: "safe.treasury.eth",
+    proposer: "0xAF83dF00132C4450AefAc07005A4C45453967102",
+    description: "Initial signer rotation calldata.",
+    extraData: "0x",
+    previousVersion: null,
+    timestamp: "Apr 29, 2026 18:30",
+    actions: [
       {
-        id: "prop-002-v1",
-        label: "v1",
-        parentIds: [],
-        author: "0xAF83...7102",
-        createdAt: "Apr 29, 2026",
-        summary: "Initial signer rotation calldata.",
-        x: 20,
-        y: 50,
-        actions: [
-          {
-            id: "prop-002-v1-a1",
-            target: "0x4200000000000000000000000000000000000007",
-            value: "0",
-            calldata:
-              "0xe318b52b0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000a11ce0000000000000000000000000000000000000000000000000000000000000000b0b",
-          },
-        ],
-      },
-      {
-        id: "prop-002-v2",
-        label: "v2",
-        parentIds: ["prop-002-v1"],
-        author: "0x21D0...F77b",
-        createdAt: "Apr 30, 2026",
-        summary: "Reviewer-created version with a second calldata action.",
-        x: 52,
-        y: 35,
-        actions: [
-          {
-            id: "prop-002-v2-a1",
-            target: "0x4200000000000000000000000000000000000007",
-            value: "0",
-            calldata:
-              "0xe318b52b0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000a11ce0000000000000000000000000000000000000000000000000000000000000000b0b",
-          },
-          {
-            id: "prop-002-v2-a2",
-            target: "0x4200000000000000000000000000000000000007",
-            value: "0",
-            calldata:
-              "0x694e80c30000000000000000000000000000000000000000000000000000000000000004",
-          },
-        ],
-      },
-      {
-        id: "prop-002-v3",
-        label: "fork",
-        parentIds: ["prop-002-v1"],
-        author: "0x68A4...c921",
-        createdAt: "Apr 30, 2026",
-        summary: "Alternative version under review.",
-        x: 52,
-        y: 68,
-        actions: [
-          {
-            id: "prop-002-v3-a1",
-            target: "0x4200000000000000000000000000000000000007",
-            value: "0",
-            calldata:
-              "0x610b59250000000000000000000000003f5ce5fbfe3e9af3971d6d5c0d5c6dc6d6d4e2f9",
-          },
-        ],
+        id: "draft-3-action-1",
+        target: "0x4200000000000000000000000000000000000007",
+        value: "0",
+        calldata:
+          "0xe318b52b0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000a11ce0000000000000000000000000000000000000000000000000000000000000000b0b",
       },
     ],
     reviews: [
       {
-        id: "review-003",
-        versionId: "prop-002-v1",
-        actionId: "prop-002-v1-a1",
-        reviewer: "0x68A4...c921",
+        id: "review-3",
+        draftId: "3",
+        reviewer: "0x68A4dbC17595f5Af83E82C92B4927BB8e9Ffc921",
         decision: "rejected",
-        comment: "Needs the related update in the same proposal.",
-        createdAt: "Apr 30, 2026",
+        comment: "Needs the related update in the same draft.",
+        createdAt: "Apr 30, 2026 08:24",
       },
     ],
   },
   {
-    id: "prop-003",
-    executorId: "executor-c",
-    title: "Token transfer",
-    description:
-      "Transfers tokens from the executor to a destination address.",
-    status: "approved",
-    createdAt: "Apr 27, 2026",
-    versions: [
+    id: "4",
+    executor: "safe.treasury.eth",
+    proposer: "0x21D0fb5a14dBbAF938dE0a36902A6527d9d9F77b",
+    description: "Fork of draft #3 with a second calldata action.",
+    extraData: "0x",
+    previousVersion: "3",
+    timestamp: "Apr 30, 2026 10:15",
+    actions: [
       {
-        id: "prop-003-v1",
-        label: "v1",
-        parentIds: [],
-        author: "0xD4E7...3301",
-        createdAt: "Apr 27, 2026",
-        summary: "Single transfer action.",
-        x: 25,
-        y: 50,
-        actions: [
-          {
-            id: "prop-003-v1-a1",
-            target: "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
-            value: "0",
-            calldata:
-              "0xa9059cbb0000000000000000000000002c8fbb630289363ac80705a1a61273f76fd5a1610000000000000000000000000000000000000000000011d2f3f61f6d82b00000",
-          },
-        ],
+        id: "draft-4-action-1",
+        target: "0x4200000000000000000000000000000000000007",
+        value: "0",
+        calldata:
+          "0xe318b52b0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000a11ce0000000000000000000000000000000000000000000000000000000000000000b0b",
+      },
+      {
+        id: "draft-4-action-2",
+        target: "0x4200000000000000000000000000000000000007",
+        value: "0",
+        calldata:
+          "0x694e80c30000000000000000000000000000000000000000000000000000000000000004",
+      },
+    ],
+    reviews: [],
+  },
+  {
+    id: "5",
+    executor: "0x9fC3da866e7DF3a1c57adE1a97c9f00a70f010c8",
+    proposer: "0xD4E7c8E92532164F6Dfd4A1452694281Be293301",
+    description: "Transfers tokens from the executor to a destination address.",
+    extraData: "0x",
+    previousVersion: null,
+    timestamp: "Apr 27, 2026 11:52",
+    actions: [
+      {
+        id: "draft-5-action-1",
+        target: "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
+        value: "0",
+        calldata:
+          "0xa9059cbb0000000000000000000000002c8fbb630289363ac80705a1a61273f76fd5a1610000000000000000000000000000000000000000000011d2f3f61f6d82b00000",
       },
     ],
     reviews: [
       {
-        id: "review-004",
-        versionId: "prop-003-v1",
-        actionId: "prop-003-v1-a1",
-        reviewer: "0x512B...7e19",
+        id: "review-4",
+        draftId: "5",
+        reviewer: "0x512B982C87425B57B8F1a99DA4C3B26C21517e19",
         decision: "approved",
         comment: "Target and calldata match the reviewed transfer.",
-        createdAt: "Apr 27, 2026",
+        createdAt: "Apr 27, 2026 13:20",
       },
     ],
   },
