@@ -5,8 +5,6 @@ import { useMemo, useState } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   Code2,
   GitBranch,
   GitFork,
@@ -165,7 +163,7 @@ function HistoryGraph({
 
   return (
     <div className="overflow-x-auto rounded-lg border">
-      <div className="relative h-[360px] min-w-[780px] bg-card">
+      <div className="relative h-[320px] min-w-[720px] bg-card">
         <svg
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 size-full"
@@ -206,7 +204,7 @@ function HistoryGraph({
                     variant={isSelected ? "default" : "outline"}
                     nativeButton={false}
                     className={cn(
-                      "absolute h-20 w-44 -translate-x-1/2 -translate-y-1/2 flex-col items-start gap-1 rounded-lg px-3 py-2 text-left",
+                      "absolute h-16 w-40 -translate-x-1/2 -translate-y-1/2 flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left",
                       !isSelected && "bg-background"
                     )}
                     style={{ left: `${draft.x}%`, top: `${draft.y}%` }}
@@ -232,107 +230,6 @@ function HistoryGraph({
           );
         })}
       </div>
-    </div>
-  );
-}
-
-function HistoryControls({
-  drafts,
-  selectedDraft,
-}: {
-  drafts: Draft[];
-  selectedDraft: Draft;
-}) {
-  const parent = selectedDraft.previousVersion
-    ? drafts.find((draft) => draft.id === selectedDraft.previousVersion)
-    : undefined;
-  const children = drafts.filter(
-    (draft) => draft.previousVersion === selectedDraft.id
-  );
-
-  return (
-    <div className="flex flex-col gap-3 rounded-lg border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="font-mono">
-            Proposal #{selectedDraft.id}
-          </Badge>
-          <Badge variant="outline">
-            {selectedDraft.previousVersion
-              ? `previous #${selectedDraft.previousVersion}`
-              : "root"}
-          </Badge>
-        </div>
-        <div className="mt-2 grid gap-1 text-sm text-muted-foreground sm:grid-cols-2">
-          <span className="truncate font-mono">
-            by {shortAddress(selectedDraft.proposer)}
-          </span>
-          <span>{selectedDraft.timestamp}</span>
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!parent}
-          nativeButton={Boolean(parent) ? false : undefined}
-          render={parent ? <Link href={`/drafts/${parent.id}`} /> : undefined}
-        >
-          <ChevronLeft className="size-4" />
-          Parent
-        </Button>
-        {children.slice(0, 2).map((child) => (
-          <Button
-            key={child.id}
-            variant="outline"
-            size="sm"
-            nativeButton={false}
-            render={<Link href={`/drafts/${child.id}`} />}
-          >
-            Child #{child.id}
-            <ChevronRight className="size-4" />
-          </Button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function HistoryTimeline({
-  drafts,
-  selectedDraft,
-}: {
-  drafts: Draft[];
-  selectedDraft: Draft;
-}) {
-  const byId = new Map(drafts.map((draft) => [draft.id, draft]));
-  const sortedDrafts = [...drafts].sort(
-    (first, second) =>
-      getDraftDepth(first, byId) - getDraftDepth(second, byId)
-  );
-
-  return (
-    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-      {sortedDrafts.map((draft) => (
-        <Link
-          key={draft.id}
-          href={`/drafts/${draft.id}`}
-          className={cn(
-            "rounded-lg border p-3 transition-colors hover:bg-muted",
-            draft.id === selectedDraft.id && "bg-muted"
-          )}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <span className="font-mono text-sm">#{draft.id}</span>
-            <span className="text-xs text-muted-foreground">
-              {draft.timestamp}
-            </span>
-          </div>
-          <div className="mt-2 truncate font-mono text-xs text-muted-foreground">
-            {shortAddress(draft.proposer)}
-          </div>
-        </Link>
-      ))}
     </div>
   );
 }
@@ -463,16 +360,14 @@ export function ProposalDetailPage({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <GitBranch className="size-4" />
-            History
+            Graph
           </CardTitle>
           <CardDescription>
-            Proposal versions linked through previousVersion, with author and timestamp.
+            Proposal versions linked through previousVersion.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
           <HistoryGraph drafts={draftFamily} selectedDraft={selectedDraft} />
-          <HistoryControls drafts={drafts} selectedDraft={selectedDraft} />
-          <HistoryTimeline drafts={draftFamily} selectedDraft={selectedDraft} />
         </CardContent>
       </Card>
 

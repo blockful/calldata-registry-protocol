@@ -118,9 +118,9 @@ export const mockDrafts: Draft[] = [
     id: "7",
     executor: "0x5b38Da6a701c568545dCfcB03FcB875f56beddC4",
     proposer: "0x68A4dbC17595f5Af83E82C92B4927BB8e9Ffc921",
-    description: "Revision of draft #6 reverting the value and testing a replacement module.",
+    description: "Parallel fork of draft #2 testing a replacement module.",
     extraData: "0x",
-    previousVersion: "6",
+    previousVersion: "2",
     timestamp: "Apr 29, 2026 13:48",
     actions: [
       {
@@ -146,9 +146,9 @@ export const mockDrafts: Draft[] = [
     id: "8",
     executor: "0x5b38Da6a701c568545dCfcB03FcB875f56beddC4",
     proposer: "0xD4E7c8E92532164F6Dfd4A1452694281Be293301",
-    description: "Revision of draft #7 returning to the original module and adding the companion action.",
+    description: "Fork of draft #6 returning to the original module and adding the companion action.",
     extraData: "0x",
-    previousVersion: "7",
+    previousVersion: "6",
     timestamp: "Apr 29, 2026 15:22",
     actions: [
       {
@@ -181,9 +181,9 @@ export const mockDrafts: Draft[] = [
     id: "9",
     executor: "0x5b38Da6a701c568545dCfcB03FcB875f56beddC4",
     proposer: "0xB000000000000000000000000000000000000009",
-    description: "Final revision of draft #8 with the reviewed action set retained.",
+    description: "Parallel fork of draft #6 with the reviewed action set retained.",
     extraData: "0x",
-    previousVersion: "8",
+    previousVersion: "6",
     timestamp: "Apr 29, 2026 17:04",
     actions: [
       {
