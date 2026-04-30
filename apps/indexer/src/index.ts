@@ -1,37 +1,8 @@
 import { ponder } from "ponder:registry";
-import { org, draft, review } from "ponder:schema";
+import { draft, review } from "ponder:schema";
 import { decodeAbiParameters, type Hex } from "viem";
 
 const REVIEW_SCHEMA_UID = (process.env.REVIEW_SCHEMA_UID ?? "0x0000000000000000000000000000000000000000000000000000000000000000").toLowerCase() as Hex;
-
-ponder.on("CalldataRegistry:OrgRegistered", async ({ event, context }) => {
-  await context.db.insert(org).values({
-    id: event.args.orgId,
-    name: event.args.name,
-    metadataURI: event.args.metadataURI,
-    registered: true,
-    registeredAt: event.block.timestamp,
-    updatedAt: event.block.timestamp,
-  });
-});
-
-ponder.on("CalldataRegistry:OrgUpdated", async ({ event, context }) => {
-  await context.db
-    .insert(org)
-    .values({
-      id: event.args.orgId,
-      name: event.args.name,
-      metadataURI: event.args.metadataURI,
-      registered: true,
-      registeredAt: event.block.timestamp,
-      updatedAt: event.block.timestamp,
-    })
-    .onConflictDoUpdate({
-      name: event.args.name,
-      metadataURI: event.args.metadataURI,
-      updatedAt: event.block.timestamp,
-    });
-});
 
 ponder.on("CalldataRegistry:DraftPublished", async ({ event, context }) => {
   const draftData = await context.client.readContract({
@@ -43,7 +14,7 @@ ponder.on("CalldataRegistry:DraftPublished", async ({ event, context }) => {
 
   await context.db.insert(draft).values({
     id: event.args.draftId,
-    org: event.args.org,
+    executor: event.args.executor,
     proposer: event.args.proposer,
     targets: JSON.stringify(draftData[2]),
     values: JSON.stringify(draftData[3].map(String)),

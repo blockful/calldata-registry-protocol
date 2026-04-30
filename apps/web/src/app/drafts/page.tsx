@@ -63,7 +63,7 @@ export default function DraftsPage() {
                     #
                   </th>
                   <th className="px-4 py-3 text-xs font-normal text-white/40">
-                    Organization
+                    Executor
                   </th>
                   <th className="px-4 py-3 text-xs font-normal text-white/40">
                     Proposer
@@ -94,7 +94,7 @@ export default function DraftsPage() {
                       </Link>
                     </td>
                     <td className="px-4 py-3 font-mono text-white/60">
-                      {truncateAddr(draft.org)}
+                      {truncateAddr(draft.executor)}
                     </td>
                     <td className="px-4 py-3 font-mono text-white/60">
                       {truncateAddr(draft.proposer)}

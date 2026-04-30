@@ -3,7 +3,7 @@ import { PONDER_API_URL } from "@/config/wagmi";
 
 export interface DraftItem {
   id: string;
-  org: string;
+  executor: string;
   proposer: string;
   targets: string[];
   values: string[];
@@ -13,15 +13,6 @@ export interface DraftItem {
   previousVersion: string;
   timestamp: string;
   blockNumber: string;
-}
-
-export interface OrgItem {
-  id: string;
-  name: string;
-  metadataURI: string;
-  registered: boolean;
-  registeredAt: string;
-  updatedAt: string;
 }
 
 export function useDrafts(limit = 50, offset = 0) {
@@ -46,41 +37,6 @@ export function useDraft(id: string) {
       return res.json();
     },
     enabled: !!id,
-  });
-}
-
-export function useOrgs() {
-  return useQuery<OrgItem[]>({
-    queryKey: ["orgs"],
-    queryFn: async () => {
-      const res = await fetch(`${PONDER_API_URL}/orgs`);
-      if (!res.ok) throw new Error("Failed to fetch orgs");
-      return res.json();
-    },
-  });
-}
-
-export function useOrg(address: string) {
-  return useQuery<OrgItem>({
-    queryKey: ["org", address],
-    queryFn: async () => {
-      const res = await fetch(`${PONDER_API_URL}/orgs/${address}`);
-      if (!res.ok) throw new Error("Failed to fetch org");
-      return res.json();
-    },
-    enabled: !!address,
-  });
-}
-
-export function useOrgDrafts(address: string) {
-  return useQuery<DraftItem[]>({
-    queryKey: ["org-drafts", address],
-    queryFn: async () => {
-      const res = await fetch(`${PONDER_API_URL}/orgs/${address}/drafts`);
-      if (!res.ok) throw new Error("Failed to fetch org drafts");
-      return res.json();
-    },
-    enabled: !!address,
   });
 }
 

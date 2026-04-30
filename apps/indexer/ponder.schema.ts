@@ -1,22 +1,10 @@
 import { onchainTable, index } from "ponder";
 
-export const org = onchainTable(
-  "org",
-  (t) => ({
-    id: t.hex().primaryKey(),       // org address
-    name: t.text().notNull(),
-    metadataURI: t.text().notNull(),
-    registered: t.boolean().notNull(),
-    registeredAt: t.bigint().notNull(),
-    updatedAt: t.bigint().notNull(),
-  })
-);
-
 export const draft = onchainTable(
   "draft",
   (t) => ({
     id: t.bigint().primaryKey(),        // draftId
-    org: t.hex().notNull(),
+    executor: t.hex().notNull(),
     proposer: t.hex().notNull(),
     targets: t.text().notNull(),        // JSON stringified array
     values: t.text().notNull(),         // JSON stringified array
@@ -29,7 +17,7 @@ export const draft = onchainTable(
     txHash: t.hex().notNull(),
   }),
   (table) => ({
-    orgIdx: index().on(table.org),
+    executorIdx: index().on(table.executor),
     proposerIdx: index().on(table.proposer),
     previousVersionIdx: index().on(table.previousVersion),
   })
