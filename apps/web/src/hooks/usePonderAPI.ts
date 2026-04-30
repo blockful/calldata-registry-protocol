@@ -10,46 +10,10 @@ export interface DraftItem {
   calldatas: string[];
   description: string;
   extraData: string;
-  previousVersion: string;
+  basedOn: string;
+  executorDraftNonce: string;
   timestamp: string;
   blockNumber: string;
-}
-
-export function useDrafts(limit = 50, offset = 0) {
-  return useQuery<DraftItem[]>({
-    queryKey: ["drafts", limit, offset],
-    queryFn: async () => {
-      const res = await fetch(
-        `${PONDER_API_URL}/drafts?limit=${limit}&offset=${offset}`
-      );
-      if (!res.ok) throw new Error("Failed to fetch drafts");
-      return res.json();
-    },
-  });
-}
-
-export function useDraft(id: string) {
-  return useQuery<DraftItem>({
-    queryKey: ["draft", id],
-    queryFn: async () => {
-      const res = await fetch(`${PONDER_API_URL}/drafts/${id}`);
-      if (!res.ok) throw new Error("Failed to fetch draft");
-      return res.json();
-    },
-    enabled: !!id,
-  });
-}
-
-export function useDraftForks(id: string) {
-  return useQuery<DraftItem[]>({
-    queryKey: ["draft-forks", id],
-    queryFn: async () => {
-      const res = await fetch(`${PONDER_API_URL}/drafts/${id}/forks`);
-      if (!res.ok) throw new Error("Failed to fetch forks");
-      return res.json();
-    },
-    enabled: !!id,
-  });
 }
 
 export interface ReviewItem {
@@ -65,14 +29,49 @@ export interface ReviewItem {
   txHash: string;
 }
 
-export function useDraftReviews(id: string) {
-  return useQuery<ReviewItem[]>({
-    queryKey: ["draft-reviews", id],
+export interface DraftDetail extends DraftItem {
+  reviews: ReviewItem[];
+  basedOnDrafts: DraftItem[];
+  basedOnParent: DraftItem | null;
+}
+
+export function useDrafts(limit = 50, offset = 0) {
+  return useQuery<DraftItem[]>({
+    queryKey: ["drafts", limit, offset],
     queryFn: async () => {
-      const res = await fetch(`${PONDER_API_URL}/drafts/${id}/reviews`);
-      if (!res.ok) throw new Error("Failed to fetch reviews");
+      const res = await fetch(
+        `${PONDER_API_URL}/drafts?limit=${limit}&offset=${offset}`
+      );
+      if (!res.ok) throw new Error("Failed to fetch drafts");
       return res.json();
     },
-    enabled: !!id,
+  });
+}
+
+export function useExecutorDrafts(executor: string, limit = 50, offset = 0) {
+  return useQuery<DraftItem[]>({
+    queryKey: ["executor-drafts", executor, limit, offset],
+    queryFn: async () => {
+      const res = await fetch(
+        `${PONDER_API_URL}/executors/${executor.toLowerCase()}/drafts?limit=${limit}&offset=${offset}`
+      );
+      if (!res.ok) throw new Error("Failed to fetch executor drafts");
+      return res.json();
+    },
+    enabled: !!executor,
+  });
+}
+
+export function useDraftDetail(executor: string, nonce: string) {
+  return useQuery<DraftDetail>({
+    queryKey: ["draft-detail", executor, nonce],
+    queryFn: async () => {
+      const res = await fetch(
+        `${PONDER_API_URL}/executors/${executor.toLowerCase()}/drafts/${nonce}`
+      );
+      if (!res.ok) throw new Error("Failed to fetch draft detail");
+      return res.json();
+    },
+    enabled: !!executor && !!nonce,
   });
 }
