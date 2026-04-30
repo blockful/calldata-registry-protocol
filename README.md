@@ -18,6 +18,8 @@ Drafts are **versioned and forkable**. Anyone can publish a new version referenc
 
 **Gasless publishing** is supported via EIP-712 signatures (EOA and smart contract wallets via EIP-1271). Authors sign, relayers submit.
 
+**Review attestations** via [EAS](https://attest.org) let third parties publicly attest they've verified a draft's calldata, with an optional comment linking to evidence (a test suite, a simulation, a written analysis).
+
 ## Apps
 
 | App | Description |
@@ -44,10 +46,10 @@ pnpm install
 ### Run tests
 
 ```bash
-# Contract tests (28 tests)
+# Contract tests (39 tests: 28 registry + 11 resolver)
 cd apps/contracts && forge test
 
-# E2E tests — spins up Anvil, deploys, runs indexer (11 tests)
+# E2E tests — spins up Anvil, deploys, runs indexer (14 tests)
 cd apps/e2e && pnpm test
 ```
 
@@ -71,6 +73,7 @@ Start the indexer:
 cd apps/indexer
 PONDER_RPC_URL_31337=http://127.0.0.1:8545 \
 REGISTRY_ADDRESS=<deployed-address> \
+EAS_ADDRESS=<eas-address> \
 pnpm dev
 ```
 
@@ -79,6 +82,8 @@ Start the frontend:
 ```bash
 cd apps/web
 NEXT_PUBLIC_REGISTRY_ADDRESS=<deployed-address> \
+NEXT_PUBLIC_EAS_ADDRESS=<eas-address> \
+NEXT_PUBLIC_REVIEW_SCHEMA_UID=<schema-uid> \
 pnpm dev
 ```
 
@@ -118,6 +123,27 @@ function updateOrg(string calldata name, string calldata metadataURI) external;
 function getDraft(uint256 draftId) external view returns (...);
 function getOrg(address orgId) external view returns (...);
 function nonces(address proposer) external view returns (uint256);
+```
+
+## Review Attestations (EAS)
+
+Third parties attest they've verified a draft via the [Ethereum Attestation Service](https://attest.org). A `CalldataReviewResolver` validates that the `draftId` exists before accepting the attestation.
+
+Schema: `uint256 draftId, bool approved, string comment`
+
+```solidity
+// Attest via EAS (standard EAS.attest call)
+EAS.attest(AttestationRequest({
+    schema: reviewSchemaUID,
+    data: AttestationRequestData({
+        recipient: address(0),
+        expirationTime: 0,
+        revocable: true,
+        refUID: bytes32(0),
+        data: abi.encode(draftId, true, "https://github.com/.../test.t.sol"),
+        value: 0
+    })
+}));
 ```
 
 ## Deployment

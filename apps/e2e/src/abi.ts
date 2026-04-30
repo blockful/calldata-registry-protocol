@@ -200,3 +200,79 @@ export const CalldataRegistryAbi = [
     inputs: [{ name: "str", type: "string" }],
   },
 ] as const;
+
+export const EasAbi = [
+  {
+    type: "function",
+    name: "attest",
+    stateMutability: "payable",
+    inputs: [
+      {
+        name: "request",
+        type: "tuple",
+        components: [
+          { name: "schema", type: "bytes32" },
+          {
+            name: "data",
+            type: "tuple",
+            components: [
+              { name: "recipient", type: "address" },
+              { name: "expirationTime", type: "uint64" },
+              { name: "revocable", type: "bool" },
+              { name: "refUID", type: "bytes32" },
+              { name: "data", type: "bytes" },
+              { name: "value", type: "uint256" },
+            ],
+          },
+        ],
+      },
+    ],
+    outputs: [{ name: "", type: "bytes32" }],
+  },
+  {
+    type: "function",
+    name: "getAttestation",
+    stateMutability: "view",
+    inputs: [{ name: "uid", type: "bytes32" }],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "uid", type: "bytes32" },
+          { name: "schema", type: "bytes32" },
+          { name: "time", type: "uint64" },
+          { name: "expirationTime", type: "uint64" },
+          { name: "revocationTime", type: "uint64" },
+          { name: "refUID", type: "bytes32" },
+          { name: "recipient", type: "address" },
+          { name: "attester", type: "address" },
+          { name: "revocable", type: "bool" },
+          { name: "data", type: "bytes" },
+        ],
+      },
+    ],
+  },
+  {
+    type: "event",
+    name: "Attested",
+    inputs: [
+      { name: "recipient", type: "address", indexed: true },
+      { name: "attester", type: "address", indexed: true },
+      { name: "uid", type: "bytes32", indexed: false },
+      { name: "schemaUID", type: "bytes32", indexed: true },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "Revoked",
+    inputs: [
+      { name: "recipient", type: "address", indexed: true },
+      { name: "revoker", type: "address", indexed: true },
+      { name: "uid", type: "bytes32", indexed: false },
+      { name: "schemaUID", type: "bytes32", indexed: true },
+    ],
+    anonymous: false,
+  },
+] as const;

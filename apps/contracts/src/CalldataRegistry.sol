@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.28;
 
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
@@ -170,6 +170,10 @@ contract CalldataRegistry is ICalldataRegistry, EIP712, Nonces {
             d.previousVersion,
             d.timestamp
         );
+    }
+
+    function draftExists(uint256 draftId) external view returns (bool) {
+        return _drafts[draftId].timestamp != 0;
     }
 
     // ── Nonces Override ────────────────────────────────────────────────

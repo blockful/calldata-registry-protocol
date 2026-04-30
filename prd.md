@@ -244,6 +244,79 @@ OpenZeppelin Contracts v5.x:
 
 ---
 
+## Review Attestations (EAS Integration)
+
+Calldata verification needs a public record. Once a reviewer inspects a draft — decoding it, simulating it, checking the targets — there should be a way to say "I reviewed this" on-chain, with an optional comment linking to evidence (a test suite, a Tenderly simulation, a written analysis).
+
+The protocol uses the [Ethereum Attestation Service (EAS)](https://attest.org) for this. EAS provides a standard attestation infrastructure already deployed on Ethereum, Optimism, Base, Arbitrum, and other chains.
+
+### Architecture
+
+A **separate contract** — `CalldataReviewResolver` — acts as an EAS schema resolver. It validates that the `draftId` in every attestation references an existing draft in the `CalldataRegistry`. This keeps the registry immutable and minimal while allowing the review layer to evolve independently.
+
+### Schema
+
+```
+uint256 draftId, bool approved, string comment
+```
+
+| Field | Description |
+|-------|-------------|
+| `draftId` | The CalldataRegistry draft being reviewed. Must exist (enforced by the resolver). |
+| `approved` | Whether the reviewer considers the calldata correct and safe. |
+| `comment` | Free text — a URL to a test on GitHub, a Tenderly simulation link, a written analysis, or empty. |
+
+### Resolver
+
+```solidity
+contract CalldataReviewResolver is SchemaResolver {
+    ICalldataRegistry public immutable registry;
+
+    function onAttest(Attestation calldata attestation, uint256) internal view override returns (bool) {
+        (uint256 draftId,,) = abi.decode(attestation.data, (uint256, bool, string));
+        (, , , , , , , , uint256 timestamp) = registry.getDraft(draftId);
+        if (timestamp == 0) revert DraftNotFound(draftId);
+        return true;
+    }
+
+    function onRevoke(Attestation calldata, uint256) internal pure override returns (bool) {
+        return true; // reviewers can retract their review
+    }
+}
+```
+
+### Flow
+
+```
+1. Reviewer inspects a draft → decodes calldata, simulates, verifies targets
+
+2. Reviewer attests via EAS:
+   EAS.attest({
+     schema: reviewSchemaUID,
+     data: { draftId: 42, approved: true, comment: "https://github.com/.../test.t.sol" }
+   })
+
+3. Resolver validates draftId exists in CalldataRegistry → attestation recorded
+
+4. Anyone queries EAS for attestations on draft #42 → sees who reviewed, approved/rejected, and their evidence
+```
+
+### Design Decisions
+
+**EAS over custom contract.** EAS provides revocable attestations, delegated attestation, multi-attestation, on-chain/off-chain options, and an existing explorer — no need to rebuild this infrastructure.
+
+**Resolver validates draft existence.** Prevents attestations for drafts that don't exist. If a draft exists, anyone can review it — no access control on reviews, matching the permissionless philosophy of the registry.
+
+**Revocable.** Reviewers can retract their approval if they discover issues after attesting. The revocation is publicly visible.
+
+**Comment as free text.** Structured metadata could be encoded in `extraData` in future schemas. For now, a plain string covers the main use cases: URLs, short notes, or empty for a simple approve/reject signal.
+
+### EAS Deployment
+
+On chains where EAS is already deployed (Ethereum, Optimism, Base, Arbitrum, etc.), the resolver is deployed and the schema is registered against the existing EAS infrastructure. For local development (Anvil), the deploy script deploys EAS, SchemaRegistry, the resolver, and registers the schema in one transaction.
+
+---
+
 ## Security Considerations
 
 - **Gas cost.** Storing full calldata on-chain is expensive for large proposals. This is an intentional tradeoff — the security value of on-chain availability outweighs the cost.

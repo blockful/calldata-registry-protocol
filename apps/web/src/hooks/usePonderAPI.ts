@@ -95,3 +95,28 @@ export function useDraftForks(id: string) {
     enabled: !!id,
   });
 }
+
+export interface ReviewItem {
+  id: string;
+  easUid: string;
+  draftId: string;
+  attester: string;
+  approved: boolean;
+  comment: string;
+  revoked: boolean;
+  timestamp: string;
+  blockNumber: string;
+  txHash: string;
+}
+
+export function useDraftReviews(id: string) {
+  return useQuery<ReviewItem[]>({
+    queryKey: ["draft-reviews", id],
+    queryFn: async () => {
+      const res = await fetch(`${PONDER_API_URL}/drafts/${id}/reviews`);
+      if (!res.ok) throw new Error("Failed to fetch reviews");
+      return res.json();
+    },
+    enabled: !!id,
+  });
+}

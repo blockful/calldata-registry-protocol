@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.28;
 
 interface ICalldataRegistry {
     // ── Events ──────────────────────────────────────────────────────────
@@ -64,6 +64,8 @@ interface ICalldataRegistry {
             uint256 previousVersion,
             uint256 timestamp
         );
+
+    function draftExists(uint256 draftId) external view returns (bool);
 
     function nonces(address proposer) external view returns (uint256);
 }

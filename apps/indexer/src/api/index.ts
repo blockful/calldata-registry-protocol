@@ -1,14 +1,13 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { db } from "ponder:api";
-import { org, draft } from "ponder:schema";
+import { org, draft, review } from "ponder:schema";
 import { eq, desc } from "ponder";
 
 const app = new Hono();
 
 app.use("/*", cors());
 
-// Helper: serialize BigInt values to strings for JSON responses
 function serialize<T>(data: T): T {
   return JSON.parse(
     JSON.stringify(data, (_key, value) =>
@@ -17,7 +16,6 @@ function serialize<T>(data: T): T {
   ) as T;
 }
 
-// Helper: parse draft rows with JSON-stringified array fields
 function parseDraft(row: any) {
   return {
     ...serialize(row),
@@ -27,13 +25,13 @@ function parseDraft(row: any) {
   };
 }
 
-// Get all orgs
+// ── Orgs ────────────────────────────────────────────────────────────────
+
 app.get("/orgs", async (c) => {
   const orgs = await db.select().from(org);
   return c.json(serialize(orgs));
 });
 
-// Get org by address
 app.get("/orgs/:address", async (c) => {
   const address = c.req.param("address") as `0x${string}`;
   const result = await db.select().from(org).where(eq(org.id, address));
@@ -41,7 +39,8 @@ app.get("/orgs/:address", async (c) => {
   return c.json(serialize(result[0]));
 });
 
-// Get all drafts (paginated)
+// ── Drafts ──────────────────────────────────────────────────────────────
+
 app.get("/drafts", async (c) => {
   const limit = Number(c.req.query("limit") ?? "50");
   const offset = Number(c.req.query("offset") ?? "0");
@@ -54,7 +53,6 @@ app.get("/drafts", async (c) => {
   return c.json(drafts.map(parseDraft));
 });
 
-// Get draft by ID
 app.get("/drafts/:id", async (c) => {
   let draftId: bigint;
   try {
@@ -67,7 +65,6 @@ app.get("/drafts/:id", async (c) => {
   return c.json(parseDraft(result[0]));
 });
 
-// Get drafts by org
 app.get("/orgs/:address/drafts", async (c) => {
   const address = c.req.param("address") as `0x${string}`;
   const drafts = await db
@@ -78,7 +75,6 @@ app.get("/orgs/:address/drafts", async (c) => {
   return c.json(drafts.map(parseDraft));
 });
 
-// Get drafts by proposer
 app.get("/proposers/:address/drafts", async (c) => {
   const address = c.req.param("address") as `0x${string}`;
   const drafts = await db
@@ -89,7 +85,6 @@ app.get("/proposers/:address/drafts", async (c) => {
   return c.json(drafts.map(parseDraft));
 });
 
-// Get version history (children of a draft)
 app.get("/drafts/:id/forks", async (c) => {
   let draftId: bigint;
   try {
@@ -103,6 +98,30 @@ app.get("/drafts/:id/forks", async (c) => {
     .where(eq(draft.previousVersion, draftId))
     .orderBy(desc(draft.id));
   return c.json(forks.map(parseDraft));
+});
+
+// ── Reviews ─────────────────────────────────────────────────────────────
+
+app.get("/drafts/:id/reviews", async (c) => {
+  let draftId: bigint;
+  try {
+    draftId = BigInt(c.req.param("id"));
+  } catch {
+    return c.json({ error: "Invalid draft ID" }, 400);
+  }
+  const reviews = await db
+    .select()
+    .from(review)
+    .where(eq(review.draftId, draftId))
+    .orderBy(desc(review.timestamp));
+  return c.json(serialize(reviews));
+});
+
+app.get("/reviews/:id", async (c) => {
+  const id = c.req.param("id");
+  const result = await db.select().from(review).where(eq(review.id, id));
+  if (result.length === 0) return c.json({ error: "Not found" }, 404);
+  return c.json(serialize(result[0]));
 });
 
 export default app;
