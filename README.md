@@ -46,10 +46,10 @@ pnpm install
 ### Run tests
 
 ```bash
-# Contract tests (28 tests)
+# Contract tests (39 tests: 28 registry + 11 resolver)
 cd apps/contracts && forge test
 
-# E2E tests — spins up Anvil, deploys, runs indexer (11 tests)
+# E2E tests — spins up Anvil, deploys, runs indexer (14 tests)
 cd apps/e2e && pnpm test
 ```
 
@@ -73,6 +73,7 @@ Start the indexer:
 cd apps/indexer
 PONDER_RPC_URL_31337=http://127.0.0.1:8545 \
 REGISTRY_ADDRESS=<deployed-address> \
+EAS_ADDRESS=<eas-address> \
 pnpm dev
 ```
 
@@ -81,6 +82,8 @@ Start the frontend:
 ```bash
 cd apps/web
 NEXT_PUBLIC_REGISTRY_ADDRESS=<deployed-address> \
+NEXT_PUBLIC_EAS_ADDRESS=<eas-address> \
+NEXT_PUBLIC_REVIEW_SCHEMA_UID=<schema-uid> \
 pnpm dev
 ```
 
