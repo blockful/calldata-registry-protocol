@@ -4,24 +4,17 @@ pragma solidity ^0.8.28;
 interface ICalldataRegistry {
     // ── Events ──────────────────────────────────────────────────────────
 
-    event OrgRegistered(address indexed orgId, string name, string metadataURI);
-    event OrgUpdated(address indexed orgId, string name, string metadataURI);
     event DraftPublished(
         uint256 indexed draftId,
-        address indexed org,
+        address indexed executor,
         address indexed proposer,
         uint256 previousVersion
     );
 
-    // ── Org Management ──────────────────────────────────────────────────
-
-    function registerOrg(string calldata name, string calldata metadataURI) external;
-    function updateOrg(string calldata name, string calldata metadataURI) external;
-
     // ── Draft Publishing ────────────────────────────────────────────────
 
     function publishDraft(
-        address org,
+        address executor,
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas,
@@ -31,7 +24,7 @@ interface ICalldataRegistry {
     ) external returns (uint256 draftId);
 
     function publishDraftBySig(
-        address org,
+        address executor,
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas,
@@ -45,16 +38,11 @@ interface ICalldataRegistry {
 
     // ── Views ───────────────────────────────────────────────────────────
 
-    function getOrg(address orgId)
-        external
-        view
-        returns (string memory name, string memory metadataURI, bool registered);
-
     function getDraft(uint256 draftId)
         external
         view
         returns (
-            address org,
+            address executor,
             address proposer,
             address[] memory targets,
             uint256[] memory values,

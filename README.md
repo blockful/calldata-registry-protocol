@@ -46,10 +46,10 @@ pnpm install
 ### Run tests
 
 ```bash
-# Contract tests (39 tests: 28 registry + 11 resolver)
+# Contract tests (33 tests: 22 registry + 11 resolver)
 cd apps/contracts && forge test
 
-# E2E tests — spins up Anvil, deploys, runs indexer (14 tests)
+# E2E tests — spins up Anvil, deploys, runs indexer
 cd apps/e2e && pnpm test
 ```
 
@@ -92,7 +92,7 @@ pnpm dev
 ```solidity
 // Publish calldata for public review
 function publishDraft(
-    address org,
+    address executor,
     address[] calldata targets,
     uint256[] calldata values,
     bytes[] calldata calldatas,
@@ -103,7 +103,7 @@ function publishDraft(
 
 // Gasless publishing via EIP-712 + EIP-1271
 function publishDraftBySig(
-    address org,
+    address executor,
     address[] calldata targets,
     uint256[] calldata values,
     bytes[] calldata calldatas,
@@ -115,13 +115,9 @@ function publishDraftBySig(
     bytes calldata signature
 ) external returns (uint256 draftId);
 
-// Optional org registration
-function registerOrg(string calldata name, string calldata metadataURI) external;
-function updateOrg(string calldata name, string calldata metadataURI) external;
-
 // Views
 function getDraft(uint256 draftId) external view returns (...);
-function getOrg(address orgId) external view returns (...);
+function draftExists(uint256 draftId) external view returns (bool);
 function nonces(address proposer) external view returns (uint256);
 ```
 
@@ -130,21 +126,6 @@ function nonces(address proposer) external view returns (uint256);
 Third parties attest they've verified a draft via the [Ethereum Attestation Service](https://attest.org). A `CalldataReviewResolver` validates that the `draftId` exists before accepting the attestation.
 
 Schema: `uint256 draftId, bool approved, string comment`
-
-```solidity
-// Attest via EAS (standard EAS.attest call)
-EAS.attest(AttestationRequest({
-    schema: reviewSchemaUID,
-    data: AttestationRequestData({
-        recipient: address(0),
-        expirationTime: 0,
-        revocable: true,
-        refUID: bytes32(0),
-        data: abi.encode(draftId, true, "https://github.com/.../test.t.sol"),
-        value: 0
-    })
-}));
-```
 
 ## Deployment
 

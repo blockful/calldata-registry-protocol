@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { db } from "ponder:api";
-import { org, draft, review } from "ponder:schema";
+import { draft, review } from "ponder:schema";
 import { eq, desc } from "ponder";
 
 const app = new Hono();
@@ -24,20 +24,6 @@ function parseDraft(row: any) {
     calldatas: typeof row.calldatas === "string" ? JSON.parse(row.calldatas) : row.calldatas,
   };
 }
-
-// ── Orgs ────────────────────────────────────────────────────────────────
-
-app.get("/orgs", async (c) => {
-  const orgs = await db.select().from(org);
-  return c.json(serialize(orgs));
-});
-
-app.get("/orgs/:address", async (c) => {
-  const address = c.req.param("address") as `0x${string}`;
-  const result = await db.select().from(org).where(eq(org.id, address));
-  if (result.length === 0) return c.json({ error: "Not found" }, 404);
-  return c.json(serialize(result[0]));
-});
 
 // ── Drafts ──────────────────────────────────────────────────────────────
 
@@ -65,12 +51,12 @@ app.get("/drafts/:id", async (c) => {
   return c.json(parseDraft(result[0]));
 });
 
-app.get("/orgs/:address/drafts", async (c) => {
+app.get("/executors/:address/drafts", async (c) => {
   const address = c.req.param("address") as `0x${string}`;
   const drafts = await db
     .select()
     .from(draft)
-    .where(eq(draft.org, address))
+    .where(eq(draft.executor, address))
     .orderBy(desc(draft.id));
   return c.json(drafts.map(parseDraft));
 });

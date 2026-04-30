@@ -255,8 +255,8 @@ export default function DraftDetailPage({
               <span className="font-mono text-white/60">{draft.proposer}</span>
             </div>
             <div>
-              <span className="text-white/40">Organization </span>
-              <span className="font-mono text-white/60">{draft.org}</span>
+              <span className="text-white/40">Executor </span>
+              <span className="font-mono text-white/60">{draft.executor}</span>
             </div>
             <div>
               <span className="text-white/40">Time </span>

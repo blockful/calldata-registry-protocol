@@ -7,7 +7,6 @@ import { ConnectButton } from "./ConnectButton";
 const NAV_ITEMS = [
   { href: "/drafts", label: "Drafts" },
   { href: "/drafts/new", label: "New Draft" },
-  { href: "/orgs", label: "Organizations" },
 ];
 
 export function Header() {

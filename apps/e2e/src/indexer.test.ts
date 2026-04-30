@@ -72,17 +72,8 @@ describe("Ponder Indexer Integration", () => {
     await waitForReady(`${apiUrl}/ready`, 60_000);
 
     // 6. Perform contract operations
-    // Register an org
-    let hash = await wallet0.writeContract({
-      address: contractAddress,
-      abi: CalldataRegistryAbi,
-      functionName: "registerOrg",
-      args: ["Indexer Test Org", "https://example.com/indexer-org"],
-    });
-    await publicClient.waitForTransactionReceipt({ hash });
-
     // Publish draft #1
-    hash = await wallet0.writeContract({
+    let hash = await wallet0.writeContract({
       address: contractAddress,
       abi: CalldataRegistryAbi,
       functionName: "publishDraft",
@@ -151,23 +142,6 @@ describe("Ponder Indexer Integration", () => {
 
   // ── Tests ──────────────────────────────────────────────────────────────
 
-  it("GET /orgs returns the registered org", async () => {
-    const res = await fetch(`${apiUrl}/orgs`);
-    expect(res.ok).toBe(true);
-    const orgs = await res.json();
-    expect(Array.isArray(orgs)).toBe(true);
-    expect(orgs.length).toBeGreaterThanOrEqual(1);
-
-    const org = orgs.find(
-      (o: any) =>
-        getAddress(o.id) === getAddress(account0.address)
-    );
-    expect(org).toBeDefined();
-    expect(org.name).toBe("Indexer Test Org");
-    expect(org.metadataURI).toBe("https://example.com/indexer-org");
-    expect(org.registered).toBe(true);
-  });
-
   it("GET /drafts returns published drafts", async () => {
     const res = await fetch(`${apiUrl}/drafts`);
     expect(res.ok).toBe(true);
@@ -181,7 +155,7 @@ describe("Ponder Indexer Integration", () => {
     expect(res.ok).toBe(true);
     const draft = await res.json();
 
-    expect(getAddress(draft.org)).toBe(getAddress(account0.address));
+    expect(getAddress(draft.executor)).toBe(getAddress(account0.address));
     expect(getAddress(draft.proposer)).toBe(getAddress(account0.address));
     expect(draft.description).toBe("Draft number one");
     // previousVersion should be 0 (stored as bigint string or number)
@@ -200,16 +174,6 @@ describe("Ponder Indexer Integration", () => {
     expect(fork).toBeDefined();
     expect(fork.description).toBe("Draft number two (fork of one)");
     expect(BigInt(fork.previousVersion)).toBe(1n);
-  });
-
-  it("GET /orgs/:address/drafts returns drafts for the org", async () => {
-    const res = await fetch(
-      `${apiUrl}/orgs/${account0.address}/drafts`
-    );
-    expect(res.ok).toBe(true);
-    const drafts = await res.json();
-    expect(Array.isArray(drafts)).toBe(true);
-    expect(drafts.length).toBeGreaterThanOrEqual(2);
   });
 
   // ── Review / Attestation Tests ──────────────────────────────────────
