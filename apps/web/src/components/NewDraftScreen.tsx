@@ -115,13 +115,13 @@ export function NewDraftScreen({
           </div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
             {previousVersion
-              ? `Fork proposal #${previousVersion}`
-              : "Create proposal"}
+              ? `Fork calldata #${previousVersion}`
+              : "Create calldata"}
           </h1>
         </div>
         <Button variant="outline" nativeButton={false} render={<Link href="/" />}>
           <ArrowLeft className="size-4" />
-          Proposals
+          Calldata
         </Button>
       </div>
 
@@ -129,7 +129,7 @@ export function NewDraftScreen({
         <main className="grid min-w-0 gap-6 content-start">
           <Card>
             <CardHeader>
-              <CardTitle>Proposal details</CardTitle>
+              <CardTitle>Calldata details</CardTitle>
               <CardDescription>
                 Fields map to `publishDraft` inputs.
               </CardDescription>
@@ -219,9 +219,9 @@ export function NewDraftScreen({
         <aside className="grid min-w-0 gap-6 content-start">
           <Card>
             <CardHeader>
-              <CardTitle>Proposal preview</CardTitle>
+              <CardTitle>Calldata preview</CardTitle>
               <CardDescription className="font-mono">
-                Proposal #{draftId}
+                Calldata #{draftId}
               </CardDescription>
               <CardAction>
                 {created ? (
@@ -283,7 +283,7 @@ export function NewDraftScreen({
 
               <Button type="button" onClick={() => setCreated(true)} disabled={!canCreate}>
                 <Plus className="size-4" />
-                {previousVersion ? "Create fork" : "Create proposal"}
+                {previousVersion ? "Create fork" : "Create calldata"}
               </Button>
             </CardContent>
           </Card>
@@ -291,9 +291,9 @@ export function NewDraftScreen({
           {parentDraft ? (
             <Card>
               <CardHeader>
-                <CardTitle>Parent proposal</CardTitle>
+                <CardTitle>Parent calldata</CardTitle>
                 <CardDescription className="font-mono">
-                  Proposal #{parentDraft.id}
+                  Calldata #{parentDraft.id}
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 text-sm">

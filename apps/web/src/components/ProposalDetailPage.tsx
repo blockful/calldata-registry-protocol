@@ -205,7 +205,7 @@ function HistoryGraph({
             >
               <span className="flex items-center gap-1 text-xs">
                 <GitBranch className="size-3" />
-                Proposal #{draft.id}
+                Calldata #{draft.id}
               </span>
               <span className="font-mono text-[0.68rem] opacity-75">
                 {shortAddress(draft.proposer)}
@@ -225,7 +225,7 @@ function ReviewsList({ reviews }: { reviews: DraftReview[] }) {
   if (reviews.length === 0) {
     return (
       <div className="rounded-lg border bg-card p-3 text-sm text-muted-foreground">
-        No reviews recorded for this proposal.
+        No reviews recorded for this calldata.
       </div>
     );
   }
@@ -312,12 +312,12 @@ export function ProposalDetailPage({
           <div className="mb-3 flex flex-wrap gap-2">
             <Badge variant="secondary">
               <GitBranch className="size-3" />
-              Proposal #{selectedDraft.id}
+              Calldata #{selectedDraft.id}
             </Badge>
             <Badge variant="outline">{selectedDraft.timestamp}</Badge>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            Proposal #{selectedDraft.id}
+            Calldata #{selectedDraft.id}
           </h1>
           <div className="mt-3 grid gap-1 text-sm text-muted-foreground sm:grid-cols-2">
             <span className="break-all font-mono">
@@ -331,7 +331,7 @@ export function ProposalDetailPage({
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" nativeButton={false} render={<Link href="/" />}>
             <ArrowLeft className="size-4" />
-            Proposals
+            Calldata
           </Button>
           <Button
             nativeButton={false}
@@ -350,7 +350,7 @@ export function ProposalDetailPage({
             Graph
           </CardTitle>
           <CardDescription>
-            Proposal versions linked through previousVersion.
+            Calldata versions linked through previousVersion.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -361,7 +361,7 @@ export function ProposalDetailPage({
       <Card>
         <CardHeader>
           <CardTitle>Description</CardTitle>
-          <CardDescription>Proposal description from the mocked record.</CardDescription>
+          <CardDescription>Calldata description from the mocked record.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="rounded-lg border bg-card p-4">
@@ -397,7 +397,7 @@ export function ProposalDetailPage({
             Reviews
           </CardTitle>
           <CardDescription>
-            Review records and local approve or reject action for this proposal.
+            Review records and local approve or reject action for this calldata.
           </CardDescription>
           <CardAction>
             <div className="flex flex-wrap gap-1.5">
@@ -415,7 +415,7 @@ export function ProposalDetailPage({
             <div className="grid gap-1">
               <h3 className="text-sm font-medium">Submit review</h3>
               <p className="text-sm text-muted-foreground">
-                Approve or reject the selected proposal calldata.
+                Approve or reject the selected calldata.
               </p>
             </div>
             <Separator />

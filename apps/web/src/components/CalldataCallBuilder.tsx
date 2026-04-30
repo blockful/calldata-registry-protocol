@@ -781,7 +781,7 @@ export function CalldataCallBuilder({
             <Badge variant="outline">{validCallCount} valid</Badge>
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            Each proposal action has its own target, value, and calldata. Build
+            Each calldata call has its own target, value, and calldata. Build
             from an ABI when possible, or paste raw calldata.
           </p>
         </div>

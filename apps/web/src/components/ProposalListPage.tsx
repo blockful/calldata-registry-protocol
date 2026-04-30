@@ -3,15 +3,19 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
   ArrowUpRight,
+  ArrowUpDown,
+  CheckCircle2,
   GitBranch,
   GitFork,
-  MessageSquare,
   Plus,
   Search,
+  XCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -29,7 +33,45 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import { mockDrafts, type Draft } from "@/lib/mock-proposals";
+
+type SortKey = "id" | "author" | "executor" | "timestamp" | "reviews";
+type SortDirection = "asc" | "desc";
+
+type SortState = {
+  key: SortKey;
+  direction: SortDirection;
+};
+
+const sortKeys: SortKey[] = [
+  "id",
+  "author",
+  "executor",
+  "timestamp",
+  "reviews",
+];
+const defaultSort: SortState = {
+  key: "timestamp",
+  direction: "desc",
+};
+
+function isSortKey(value: string | undefined): value is SortKey {
+  return sortKeys.includes(value as SortKey);
+}
+
+function normalizeSort(
+  sortKey: string | undefined,
+  sortDirection: string | undefined
+): SortState {
+  return {
+    key: isSortKey(sortKey) ? sortKey : defaultSort.key,
+    direction:
+      sortDirection === "asc" || sortDirection === "desc"
+        ? sortDirection
+        : defaultSort.direction,
+  };
+}
 
 function shortAddress(value: string) {
   if (value.length <= 18) return value;
@@ -51,38 +93,142 @@ function ReviewsBadge({ draft }: { draft: Draft }) {
 
   return (
     <div className="flex flex-wrap gap-1.5">
-      <Badge variant="outline">
-        <MessageSquare className="size-3" />
-        {draft.reviews.length}
+      <Badge variant="outline" aria-label={`${totals.approved} approved`}>
+        <CheckCircle2 className="size-3" />
+        {totals.approved}
       </Badge>
-      <Badge variant="outline">{totals.approved} approved</Badge>
-      <Badge variant="outline" className="text-muted-foreground">
-        {totals.rejected} rejected
+      <Badge
+        variant="outline"
+        className="text-muted-foreground"
+        aria-label={`${totals.rejected} rejected`}
+      >
+        <XCircle className="size-3" />
+        {totals.rejected}
       </Badge>
     </div>
   );
 }
 
-export function ProposalListPage() {
+function getTimestampValue(draft: Draft) {
+  const value = Date.parse(draft.timestamp);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function compareDrafts(first: Draft, second: Draft, sort: SortState) {
+  const multiplier = sort.direction === "asc" ? 1 : -1;
+  let result = 0;
+
+  switch (sort.key) {
+    case "id": {
+      const firstId = Number(first.id);
+      const secondId = Number(second.id);
+      result =
+        Number.isFinite(firstId) && Number.isFinite(secondId)
+          ? firstId - secondId
+          : first.id.localeCompare(second.id);
+      break;
+    }
+    case "author":
+      result = first.proposer.localeCompare(second.proposer);
+      break;
+    case "executor":
+      result = first.executor.localeCompare(second.executor);
+      break;
+    case "timestamp":
+      result = getTimestampValue(first) - getTimestampValue(second);
+      break;
+    case "reviews": {
+      const firstTotals = reviewTotals(first);
+      const secondTotals = reviewTotals(second);
+      result =
+        firstTotals.approved - secondTotals.approved ||
+        firstTotals.rejected - secondTotals.rejected ||
+        first.reviews.length - second.reviews.length;
+      break;
+    }
+  }
+
+  return result * multiplier;
+}
+
+function SortableHead({
+  label,
+  sortKey,
+  sort,
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: SortState;
+}) {
+  const isActive = sort.key === sortKey;
+  const Icon = !isActive
+    ? ArrowUpDown
+    : sort.direction === "asc"
+      ? ArrowUp
+      : ArrowDown;
+  const nextDirection: SortDirection =
+    isActive && sort.direction === "asc" ? "desc" : "asc";
+
+  return (
+    <TableHead
+      aria-sort={
+        isActive
+          ? sort.direction === "asc"
+            ? "ascending"
+            : "descending"
+          : "none"
+      }
+    >
+      <Link
+        href={`/?sort=${sortKey}&direction=${nextDirection}`}
+        className={cn(
+          buttonVariants({ variant: "ghost", size: "sm" }),
+          "-ml-2 h-7 px-2 text-xs",
+          isActive && "text-foreground"
+        )}
+      >
+        {label}
+        <Icon className="size-3.5" />
+      </Link>
+    </TableHead>
+  );
+}
+
+export function ProposalListPage({
+  sortKey,
+  sortDirection,
+}: {
+  sortKey?: string;
+  sortDirection?: string;
+}) {
   const [query, setQuery] = useState("");
+  const sort = useMemo(
+    () => normalizeSort(sortKey, sortDirection),
+    [sortKey, sortDirection]
+  );
 
-  const proposals = useMemo(() => {
+  const calldatas = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) return mockDrafts;
 
-    return mockDrafts.filter((proposal) =>
-      [
-        proposal.id,
-        proposal.executor,
-        proposal.proposer,
-        proposal.description,
-        proposal.previousVersion ?? "",
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(normalizedQuery)
+    const filtered = !normalizedQuery
+      ? mockDrafts
+      : mockDrafts.filter((calldata) =>
+          [
+            calldata.id,
+            calldata.executor,
+            calldata.proposer,
+            calldata.description,
+            calldata.previousVersion ?? "",
+          ]
+            .join(" ")
+            .toLowerCase()
+            .includes(normalizedQuery)
+        );
+
+    return [...filtered].sort((first, second) =>
+      compareDrafts(first, second, sort)
     );
-  }, [query]);
+  }, [query, sort]);
 
   return (
     <div className="mx-auto grid w-full max-w-[1440px] gap-6 px-4 py-6 sm:px-6 lg:px-8">
@@ -91,25 +237,25 @@ export function ProposalListPage() {
           <div className="mb-3 flex flex-wrap gap-2">
             <Badge variant="secondary">
               <GitBranch className="size-3" />
-              Proposals
+              Calldata
             </Badge>
             <Badge variant="outline">{mockDrafts.length} total</Badge>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            Proposals
+            Calldata
           </h1>
         </div>
         <Button nativeButton={false} render={<Link href="/drafts/new" />}>
           <Plus className="size-4" />
-          Create proposal
+          Create calldata
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>All proposals</CardTitle>
+          <CardTitle>All calldata</CardTitle>
           <CardDescription>
-            Mocked proposal records by author, executor, timestamp, and reviews.
+            Mocked calldata records by author, executor, timestamp, and reviews.
           </CardDescription>
           <CardAction>
             <div className="relative w-full min-w-[220px] sm:w-[320px]">
@@ -118,7 +264,7 @@ export function ProposalListPage() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 className="pl-8"
-                placeholder="Proposal, author, executor"
+                placeholder="Calldata, author, executor"
               />
             </div>
           </CardAction>
@@ -128,46 +274,66 @@ export function ProposalListPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Proposal</TableHead>
-                  <TableHead>Author</TableHead>
-                  <TableHead>Executor</TableHead>
-                  <TableHead>Timestamp</TableHead>
-                  <TableHead>Reviews</TableHead>
+                  <SortableHead
+                    label="Calldata"
+                    sortKey="id"
+                    sort={sort}
+                  />
+                  <SortableHead
+                    label="Author"
+                    sortKey="author"
+                    sort={sort}
+                  />
+                  <SortableHead
+                    label="Executor"
+                    sortKey="executor"
+                    sort={sort}
+                  />
+                  <SortableHead
+                    label="Timestamp"
+                    sortKey="timestamp"
+                    sort={sort}
+                  />
+                  <SortableHead
+                    label="Reviews"
+                    sortKey="reviews"
+                    sort={sort}
+                  />
                   <TableHead className="w-[180px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {proposals.map((proposal) => (
-                  <TableRow key={proposal.id}>
+                {calldatas.map((calldata) => (
+                  <TableRow key={calldata.id}>
                     <TableCell className="min-w-[280px]">
                       <div className="grid gap-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-mono text-sm font-medium">
-                            Proposal #{proposal.id}
+                            Calldata #{calldata.id}
                           </span>
-                          {proposal.previousVersion ? (
+                          {calldata.previousVersion ? (
                             <Badge variant="outline">
                               <GitBranch className="size-3" />
-                              from #{proposal.previousVersion}
+                              from #{calldata.previousVersion}
                             </Badge>
                           ) : null}
                         </div>
                         <span className="max-w-[34rem] truncate text-sm text-muted-foreground">
-                          {proposal.description || "No description"}
+                          {calldata.description || "No description"}
                         </span>
                       </div>
                     </TableCell>
                     <TableCell className="font-mono text-xs">
-                      {shortAddress(proposal.proposer)}
+                      {shortAddress(calldata.proposer)}
                     </TableCell>
                     <TableCell className="font-mono text-xs">
-                      {shortAddress(proposal.executor)}
+                      {shortAddress(calldata.executor)}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {proposal.timestamp}
+                      {calldata.timestamp}
                     </TableCell>
                     <TableCell>
-                      <ReviewsBadge draft={proposal} />
+                      <ReviewsBadge draft={calldata} />
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-2">
@@ -175,23 +341,23 @@ export function ProposalListPage() {
                           variant="outline"
                           size="sm"
                           nativeButton={false}
-                          render={<Link href={`/drafts/${proposal.id}`} />}
-                        >
-                          <ArrowUpRight className="size-3.5" />
-                          View
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          nativeButton={false}
                           render={
                             <Link
-                              href={`/drafts/new?previousVersion=${proposal.id}`}
+                              href={`/drafts/new?previousVersion=${calldata.id}`}
                             />
                           }
                         >
                           <GitFork className="size-3.5" />
                           Fork
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          nativeButton={false}
+                          render={<Link href={`/drafts/${calldata.id}`} />}
+                        >
+                          <ArrowUpRight className="size-3.5" />
+                          View
                         </Button>
                       </div>
                     </TableCell>
