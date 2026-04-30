@@ -13,6 +13,7 @@ import {
   MessageSquare,
   XCircle,
 } from "lucide-react";
+import { CalldataCallBuilder } from "@/components/CalldataCallBuilder";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,16 +26,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
@@ -44,18 +36,10 @@ import {
 import { cn } from "@/lib/utils";
 import {
   mockDrafts,
-  type CalldataAction,
   type Draft,
   type DraftReview,
   type ReviewDecision,
 } from "@/lib/mock-proposals";
-
-const emptyAction: CalldataAction = {
-  id: "empty-action",
-  target: "",
-  value: "0",
-  calldata: "0x",
-};
 
 const decisionClassName: Record<ReviewDecision, string> = {
   approved: "border-foreground/30 bg-foreground/5 text-foreground",
@@ -71,12 +55,6 @@ function DecisionBadge({ decision }: { decision: ReviewDecision }) {
       {decision}
     </Badge>
   );
-}
-
-function selectorFromCalldata(calldata: string) {
-  return calldata.startsWith("0x") && calldata.length >= 10
-    ? calldata.slice(0, 10)
-    : "0x";
 }
 
 function shortAddress(value: string) {
@@ -173,10 +151,6 @@ function layoutDrafts(drafts: Draft[]) {
       y: ((siblingIndex + 1) / (siblings.length + 1)) * 100,
     };
   });
-}
-
-function getInitialAction(draft: Draft) {
-  return draft.actions[0] ?? emptyAction;
 }
 
 function HistoryGraph({
@@ -363,44 +337,6 @@ function HistoryTimeline({
   );
 }
 
-function ActionList({
-  actions,
-  selectedActionId,
-  onSelect,
-}: {
-  actions: CalldataAction[];
-  selectedActionId: string;
-  onSelect: (actionId: string) => void;
-}) {
-  return (
-    <div className="grid gap-2">
-      {actions.map((action, index) => (
-        <Button
-          key={action.id}
-          type="button"
-          variant={action.id === selectedActionId ? "secondary" : "ghost"}
-          className="h-auto justify-start whitespace-normal rounded-lg px-3 py-2 text-left"
-          onClick={() => onSelect(action.id)}
-        >
-          <span className="flex w-full items-start gap-3">
-            <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
-              {String(index + 1).padStart(2, "0")}
-            </span>
-            <span className="grid min-w-0 gap-1">
-              <span className="font-mono text-xs">
-                {selectorFromCalldata(action.calldata)}
-              </span>
-              <span className="truncate text-xs text-muted-foreground">
-                {shortAddress(action.target)}
-              </span>
-            </span>
-          </span>
-        </Button>
-      ))}
-    </div>
-  );
-}
-
 function ReviewsList({ reviews }: { reviews: DraftReview[] }) {
   if (reviews.length === 0) {
     return (
@@ -436,34 +372,25 @@ export function ProposalDetailPage({
   const initialDraft =
     mockDrafts.find((draft) => draft.id === initialDraftId) ?? mockDrafts[0];
   const [drafts, setDrafts] = useState<Draft[]>(mockDrafts);
-  const [selectedActionId, setSelectedActionId] = useState(
-    getInitialAction(initialDraft).id
-  );
   const [reviewer, setReviewer] = useState("0xReviewer");
   const [reviewComment, setReviewComment] = useState("");
 
   const selectedDraft =
     drafts.find((draft) => draft.id === initialDraftId) ?? initialDraft;
-  const selectedAction =
-    selectedDraft.actions.find((action) => action.id === selectedActionId) ??
-    selectedDraft.actions[0] ??
-    emptyAction;
   const draftFamily = useMemo(
     () => getDraftFamily(drafts, selectedDraft),
     [drafts, selectedDraft]
   );
   const totals = reviewTotals(selectedDraft);
 
-  function updateSelectedAction(nextAction: CalldataAction) {
+  function updateSelectedActions(nextActions: Draft["actions"]) {
     setDrafts((current) =>
       current.map((draft) => {
         if (draft.id !== selectedDraft.id) return draft;
 
         return {
           ...draft,
-          actions: draft.actions.map((action) =>
-            action.id === nextAction.id ? nextAction : action
-          ),
+          actions: nextActions,
         };
       })
     );
@@ -570,91 +497,14 @@ export function ProposalDetailPage({
             Calldata
           </CardTitle>
           <CardDescription>
-            Select an action and edit the target, value, or calldata locally.
+            Review the full calls array and edit target, value, or calldata locally.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <div className="grid gap-3 content-start">
-            <ActionList
-              actions={selectedDraft.actions}
-              selectedActionId={selectedAction.id}
-              onSelect={setSelectedActionId}
-            />
-            <div className="overflow-x-auto rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Target</TableHead>
-                    <TableHead>Value</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedDraft.actions.map((action) => (
-                    <TableRow key={action.id}>
-                      <TableCell className="font-mono text-xs">
-                        {shortAddress(action.target)}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {action.value}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-
-          <div className="grid gap-4">
-            <div className="grid gap-4 md:grid-cols-[1fr_140px]">
-              <div className="grid gap-2">
-                <Label htmlFor="target">Target</Label>
-                <Input
-                  id="target"
-                  value={selectedAction.target}
-                  onChange={(event) =>
-                    updateSelectedAction({
-                      ...selectedAction,
-                      target: event.target.value,
-                    })
-                  }
-                  className="font-mono"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="value">Value</Label>
-                <Input
-                  id="value"
-                  value={selectedAction.value}
-                  onChange={(event) =>
-                    updateSelectedAction({
-                      ...selectedAction,
-                      value: event.target.value,
-                    })
-                  }
-                  className="font-mono"
-                />
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="calldata">Calldata</Label>
-              <Textarea
-                id="calldata"
-                value={selectedAction.calldata}
-                onChange={(event) =>
-                  updateSelectedAction({
-                    ...selectedAction,
-                    calldata: event.target.value,
-                  })
-                }
-                className="min-h-[220px] font-mono text-xs"
-              />
-            </div>
-            <ScrollArea className="h-[180px] rounded-lg border bg-muted">
-              <pre className="whitespace-pre-wrap break-all p-4 font-mono text-xs leading-6 text-muted-foreground">
-                {selectedAction.calldata}
-              </pre>
-            </ScrollArea>
-          </div>
+        <CardContent>
+          <CalldataCallBuilder
+            actions={selectedDraft.actions}
+            onChange={updateSelectedActions}
+          />
         </CardContent>
       </Card>
 

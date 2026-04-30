@@ -2,15 +2,14 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { useAccount } from "wagmi";
 import {
   ArrowLeft,
   CheckCircle2,
-  Code2,
   GitBranch,
   Plus,
 } from "lucide-react";
+import { CalldataCallBuilder } from "@/components/CalldataCallBuilder";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,15 +32,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { mockDrafts, type Draft } from "@/lib/mock-proposals";
+import {
+  mockDrafts,
+  type CalldataAction,
+  type Draft,
+} from "@/lib/mock-proposals";
 
 type DraftForm = {
   executor: string;
   description: string;
   extraData: string;
-  target: string;
-  value: string;
-  calldata: string;
+  actions: CalldataAction[];
 };
 
 function shortAddress(value: string) {
@@ -59,22 +60,31 @@ function getNextDraftId(drafts: Draft[]) {
 }
 
 function getInitialForm(parentDraft?: Draft): DraftForm {
-  const parentAction = parentDraft?.actions[0];
-
   return {
     executor: parentDraft?.executor ?? "",
     description: "",
     extraData: parentDraft?.extraData ?? "0x",
-    target: parentAction?.target ?? "",
-    value: parentAction?.value ?? "0",
-    calldata: parentAction?.calldata ?? "0x",
+    actions:
+      parentDraft?.actions.map((action, index) => ({
+        ...action,
+        id: `new-${action.id}-${index}`,
+      })) ?? [
+        {
+          id: "new-action-1",
+          target: "",
+          value: "0",
+          calldata: "0x",
+        },
+      ],
   };
 }
 
-export function NewDraftScreen() {
-  const searchParams = useSearchParams();
+export function NewDraftScreen({
+  previousVersion,
+}: {
+  previousVersion: string | null;
+}) {
   const { address } = useAccount();
-  const previousVersion = searchParams.get("previousVersion");
   const parentDraft = useMemo(
     () => mockDrafts.find((draft) => draft.id === previousVersion),
     [previousVersion]
@@ -85,8 +95,10 @@ export function NewDraftScreen() {
   const draftId = getNextDraftId(mockDrafts);
   const canCreate =
     form.executor.trim().length > 0 &&
-    form.target.trim().length > 0 &&
-    form.calldata.trim().length > 0;
+    form.actions.length > 0 &&
+    form.actions.every(
+      (action) => action.target.trim().length > 0 && action.calldata.trim().length > 0
+    );
 
   return (
     <div className="mx-auto grid w-full max-w-[1440px] gap-6 px-4 py-6 sm:px-6 lg:px-8">
@@ -102,12 +114,14 @@ export function NewDraftScreen() {
             </Badge>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            {previousVersion ? `Fork draft #${previousVersion}` : "Create draft"}
+            {previousVersion
+              ? `Fork proposal #${previousVersion}`
+              : "Create proposal"}
           </h1>
         </div>
         <Button variant="outline" nativeButton={false} render={<Link href="/" />}>
           <ArrowLeft className="size-4" />
-          Back to drafts
+          Proposals
         </Button>
       </div>
 
@@ -115,7 +129,7 @@ export function NewDraftScreen() {
         <main className="grid min-w-0 gap-6 content-start">
           <Card>
             <CardHeader>
-              <CardTitle>Draft details</CardTitle>
+              <CardTitle>Proposal details</CardTitle>
               <CardDescription>
                 Fields map to `publishDraft` inputs.
               </CardDescription>
@@ -183,61 +197,21 @@ export function NewDraftScreen() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Code2 className="size-4" />
-                Calldata action
-              </CardTitle>
+              <CardTitle>Calldata calls</CardTitle>
               <CardDescription>
-                This mock screen starts with one calldata action.
+                Add one or more calls, build calldata from an ABI, or paste raw calldata.
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="grid gap-4 md:grid-cols-[1fr_140px]">
-                <div className="grid gap-2">
-                  <Label htmlFor="target">Target</Label>
-                  <Input
-                    id="target"
-                    value={form.target}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        target: event.target.value,
-                      }))
-                    }
-                    className="font-mono"
-                    placeholder="0x..."
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="value">Value</Label>
-                  <Input
-                    id="value"
-                    value={form.value}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        value: event.target.value,
-                      }))
-                    }
-                    className="font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="calldata">Calldata</Label>
-                <Textarea
-                  id="calldata"
-                  value={form.calldata}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      calldata: event.target.value,
-                    }))
-                  }
-                  className="min-h-[180px] font-mono text-xs"
-                />
-              </div>
+            <CardContent>
+              <CalldataCallBuilder
+                actions={form.actions}
+                onChange={(actions) =>
+                  setForm((current) => ({
+                    ...current,
+                    actions,
+                  }))
+                }
+              />
             </CardContent>
           </Card>
         </main>
@@ -245,9 +219,9 @@ export function NewDraftScreen() {
         <aside className="grid min-w-0 gap-6 content-start">
           <Card>
             <CardHeader>
-              <CardTitle>Draft preview</CardTitle>
+              <CardTitle>Proposal preview</CardTitle>
               <CardDescription className="font-mono">
-                Draft #{draftId}
+                Proposal #{draftId}
               </CardDescription>
               <CardAction>
                 {created ? (
@@ -285,25 +259,31 @@ export function NewDraftScreen() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Call</TableHead>
                     <TableHead>Target</TableHead>
                     <TableHead>Value</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow>
-                    <TableCell className="font-mono text-xs">
-                      {form.target ? shortAddress(form.target) : "--"}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {form.value || "0"}
-                    </TableCell>
-                  </TableRow>
+                  {form.actions.map((action, index) => (
+                    <TableRow key={action.id}>
+                      <TableCell className="font-mono text-xs">
+                        {String(index + 1).padStart(2, "0")}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {action.target ? shortAddress(action.target) : "--"}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {action.value || "0"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
 
               <Button type="button" onClick={() => setCreated(true)} disabled={!canCreate}>
                 <Plus className="size-4" />
-                {previousVersion ? "Create fork" : "Create draft"}
+                {previousVersion ? "Create fork" : "Create proposal"}
               </Button>
             </CardContent>
           </Card>
@@ -311,9 +291,9 @@ export function NewDraftScreen() {
           {parentDraft ? (
             <Card>
               <CardHeader>
-                <CardTitle>Parent draft</CardTitle>
+                <CardTitle>Parent proposal</CardTitle>
                 <CardDescription className="font-mono">
-                  Draft #{parentDraft.id}
+                  Proposal #{parentDraft.id}
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 text-sm">
