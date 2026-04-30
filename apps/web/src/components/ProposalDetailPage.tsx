@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { CalldataCallBuilder } from "@/components/CalldataCallBuilder";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -26,11 +26,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
   mockDrafts,
@@ -197,36 +192,28 @@ function HistoryGraph({
           const isSelected = draft.id === selectedDraft.id;
 
           return (
-            <Tooltip key={draft.id}>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant={isSelected ? "default" : "outline"}
-                    nativeButton={false}
-                    className={cn(
-                      "absolute h-16 w-40 -translate-x-1/2 -translate-y-1/2 flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left",
-                      !isSelected && "bg-background"
-                    )}
-                    style={{ left: `${draft.x}%`, top: `${draft.y}%` }}
-                    render={<Link href={`/drafts/${draft.id}`} />}
-                  />
-                }
-              >
-                <span className="flex items-center gap-1 text-xs">
-                  <GitBranch className="size-3" />
-                  Proposal #{draft.id}
-                </span>
-                <span className="font-mono text-[0.68rem] opacity-75">
-                  {shortAddress(draft.proposer)}
-                </span>
-                <span className="text-[0.68rem] opacity-75">
-                  {draft.timestamp}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                {draft.description || `Proposal #${draft.id}`}
-              </TooltipContent>
-            </Tooltip>
+            <Link
+              key={draft.id}
+              href={`/drafts/${draft.id}`}
+              aria-current={isSelected ? "page" : undefined}
+              className={cn(
+                buttonVariants({ variant: isSelected ? "default" : "outline" }),
+                "absolute z-10 h-16 w-40 -translate-x-1/2 -translate-y-1/2 flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left",
+                !isSelected && "bg-background"
+              )}
+              style={{ left: `${draft.x}%`, top: `${draft.y}%` }}
+            >
+              <span className="flex items-center gap-1 text-xs">
+                <GitBranch className="size-3" />
+                Proposal #{draft.id}
+              </span>
+              <span className="font-mono text-[0.68rem] opacity-75">
+                {shortAddress(draft.proposer)}
+              </span>
+              <span className="text-[0.68rem] opacity-75">
+                {draft.timestamp}
+              </span>
+            </Link>
           );
         })}
       </div>
