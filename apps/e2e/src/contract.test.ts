@@ -39,8 +39,9 @@ describe("CalldataRegistry Contract", () => {
     anvilProcess = anvil.process;
     rpcUrl = anvil.rpcUrl;
 
-    // Deploy contract
-    contractAddress = await deployContracts(rpcUrl);
+    // Deploy contracts
+    const deploy = await deployContracts(rpcUrl);
+    contractAddress = deploy.registryAddress;
     expect(contractAddress).toMatch(/^0x[0-9a-fA-F]{40}$/);
 
     // Create clients

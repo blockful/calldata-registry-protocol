@@ -9,7 +9,6 @@ const INDEXER_DIR = path.join(ROOT, "apps/indexer");
 
 // ── Port Utilities ─────────────────────────────────────────────────────────
 
-/** Find a free port by binding to port 0 and releasing it. */
 export function getFreePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const srv = createServer();
@@ -94,7 +93,15 @@ export async function startAnvil(port?: number): Promise<AnvilInstance> {
 
 // ── Deploy Contracts ───────────────────────────────────────────────────────
 
-export async function deployContracts(rpcUrl: string): Promise<`0x${string}`> {
+export interface DeployResult {
+  registryAddress: `0x${string}`;
+  easAddress: `0x${string}`;
+  schemaRegistryAddress: `0x${string}`;
+  resolverAddress: `0x${string}`;
+  schemaUID: `0x${string}`;
+}
+
+export async function deployContracts(rpcUrl: string): Promise<DeployResult> {
   const privateKey =
     "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 
@@ -139,62 +146,77 @@ export async function deployContracts(rpcUrl: string): Promise<`0x${string}`> {
         return;
       }
 
-      // Try parsing from broadcast JSON first (most reliable)
+      // Parse addresses from broadcast JSON
       const broadcastPaths = [
         path.join(CONTRACTS_DIR, "broadcast/Deploy.s.sol/31337/deploySimple-latest.json"),
         path.join(CONTRACTS_DIR, "broadcast/Deploy.s.sol/31337/run-latest.json"),
       ];
+
       for (const broadcastPath of broadcastPaths) {
         try {
           const raw = await readFile(broadcastPath, "utf-8");
           const data = JSON.parse(raw);
-          for (const tx of data.transactions) {
-            if (tx.transactionType === "CREATE") {
-              resolve(tx.contractAddress as `0x${string}`);
-              return;
-            }
+          const creates = data.transactions.filter(
+            (tx: any) => tx.transactionType === "CREATE"
+          );
+
+          if (creates.length >= 4) {
+            resolve({
+              registryAddress: creates[0].contractAddress as `0x${string}`,
+              schemaRegistryAddress: creates[1].contractAddress as `0x${string}`,
+              easAddress: creates[2].contractAddress as `0x${string}`,
+              resolverAddress: creates[3].contractAddress as `0x${string}`,
+              schemaUID: parseSchemaUID(stdout + stderr),
+            });
+            return;
           }
         } catch {
           // Try next path
         }
       }
 
-      // Parse from stdout
-      const match = stdout.match(
-        /Contract Address:\s*(0x[0-9a-fA-F]{40})/i
-      );
+      // Fallback: parse from stdout
+      const addresses = [...(stdout + stderr).matchAll(/deployed.*?at:\s*(0x[0-9a-fA-F]{40})/gi)]
+        .map(m => m[1] as `0x${string}`);
+
+      if (addresses.length >= 4) {
+        resolve({
+          registryAddress: addresses[0],
+          schemaRegistryAddress: addresses[1],
+          easAddress: addresses[2],
+          resolverAddress: addresses[3],
+          schemaUID: parseSchemaUID(stdout + stderr),
+        });
+        return;
+      }
+
+      // Legacy fallback for single contract
+      const match = (stdout + stderr).match(/Contract Address:\s*(0x[0-9a-fA-F]{40})/i);
       if (match) {
-        resolve(match[1] as `0x${string}`);
-        return;
-      }
-
-      // Try another stdout pattern
-      const match2 = stdout.match(
-        /new CalldataRegistry@(0x[0-9a-fA-F]{40})/i
-      );
-      if (match2) {
-        resolve(match2[1] as `0x${string}`);
-        return;
-      }
-
-      // Try "deployed ... at:" pattern
-      const match3 = stdout.match(
-        /deployed.*at:\s*(0x[0-9a-fA-F]{40})/i
-      );
-      if (match3) {
-        resolve(match3[1] as `0x${string}`);
+        resolve({
+          registryAddress: match[1] as `0x${string}`,
+          easAddress: "0x0000000000000000000000000000000000000000",
+          schemaRegistryAddress: "0x0000000000000000000000000000000000000000",
+          resolverAddress: "0x0000000000000000000000000000000000000000",
+          schemaUID: "0x0000000000000000000000000000000000000000000000000000000000000000",
+        });
         return;
       }
 
       reject(
         new Error(
-          `Could not parse contract address from deploy output:\n${stdout}`
+          `Could not parse contract addresses from deploy output:\n${stdout}\n${stderr}`
         )
       );
     });
 
     proc.on("error", reject);
   });
+}
+
+function parseSchemaUID(output: string): `0x${string}` {
+  const match = output.match(/0x[0-9a-fA-F]{64}/);
+  return (match ? match[0] : "0x0000000000000000000000000000000000000000000000000000000000000000") as `0x${string}`;
 }
 
 // ── Ponder Indexer ─────────────────────────────────────────────────────────
@@ -208,7 +230,8 @@ export interface PonderInstance {
 export async function startPonder(
   contractAddress: string,
   rpcUrl: string,
-  port?: number
+  port?: number,
+  easAddress?: string
 ): Promise<PonderInstance> {
   if (port === undefined) {
     port = await getFreePort();
@@ -222,6 +245,10 @@ export async function startPonder(
       PONDER_RPC_URL_31337: rpcUrl,
       REGISTRY_ADDRESS: contractAddress,
     };
+
+    if (easAddress) {
+      env.EAS_ADDRESS = easAddress;
+    }
 
     const proc = spawn(
       "pnpm",
@@ -245,8 +272,6 @@ export async function startPonder(
 
     const onData = (chunk: Buffer) => {
       const text = chunk.toString();
-      // With --disable-ui, Ponder prints structured log lines.
-      // "Created HTTP server" means the API is accepting connections.
       if (
         !started &&
         (text.includes("Created HTTP server") ||
@@ -255,7 +280,6 @@ export async function startPonder(
       ) {
         started = true;
         clearTimeout(timer);
-        // Give ponder a moment to fully initialize
         setTimeout(
           () => resolve({ process: proc, apiUrl, port: ponderPort }),
           2_000
@@ -305,7 +329,6 @@ export function cleanup(...processes: (ChildProcess | undefined | null)[]) {
   for (const proc of processes) {
     if (proc && !proc.killed) {
       proc.kill("SIGTERM");
-      // Force kill after 3s if SIGTERM doesn't work
       setTimeout(() => {
         try {
           if (!proc.killed) proc.kill("SIGKILL");

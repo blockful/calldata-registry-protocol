@@ -34,3 +34,22 @@ export const draft = onchainTable(
     previousVersionIdx: index().on(table.previousVersion),
   })
 );
+
+export const review = onchainTable(
+  "review",
+  (t) => ({
+    id: t.hex().primaryKey(),           // EAS attestation UID
+    draftId: t.bigint().notNull(),
+    attester: t.hex().notNull(),
+    approved: t.boolean().notNull(),
+    comment: t.text().notNull(),
+    revoked: t.boolean().notNull(),
+    timestamp: t.bigint().notNull(),
+    blockNumber: t.bigint().notNull(),
+    txHash: t.hex().notNull(),
+  }),
+  (table) => ({
+    draftIdIdx: index().on(table.draftId),
+    attesterIdx: index().on(table.attester),
+  })
+);

@@ -18,6 +18,8 @@ Drafts are **versioned and forkable**. Anyone can publish a new version referenc
 
 **Gasless publishing** is supported via EIP-712 signatures (EOA and smart contract wallets via EIP-1271). Authors sign, relayers submit.
 
+**Review attestations** via [EAS](https://attest.org) let third parties publicly attest they've verified a draft's calldata, with an optional comment linking to evidence (a test suite, a simulation, a written analysis).
+
 ## Apps
 
 | App | Description |
@@ -118,6 +120,27 @@ function updateOrg(string calldata name, string calldata metadataURI) external;
 function getDraft(uint256 draftId) external view returns (...);
 function getOrg(address orgId) external view returns (...);
 function nonces(address proposer) external view returns (uint256);
+```
+
+## Review Attestations (EAS)
+
+Third parties attest they've verified a draft via the [Ethereum Attestation Service](https://attest.org). A `CalldataReviewResolver` validates that the `draftId` exists before accepting the attestation.
+
+Schema: `uint256 draftId, bool approved, string comment`
+
+```solidity
+// Attest via EAS (standard EAS.attest call)
+EAS.attest(AttestationRequest({
+    schema: reviewSchemaUID,
+    data: AttestationRequestData({
+        recipient: address(0),
+        expirationTime: 0,
+        revocable: true,
+        refUID: bytes32(0),
+        data: abi.encode(draftId, true, "https://github.com/.../test.t.sol"),
+        value: 0
+    })
+}));
 ```
 
 ## Deployment
