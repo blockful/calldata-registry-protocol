@@ -1,5 +1,5 @@
-import { ProposalReviewWorkspace } from "@/components/ProposalReviewWorkspace";
+import { ProposalListPage } from "@/components/ProposalListPage";
 
 export default function HomePage() {
-  return <ProposalReviewWorkspace />;
+  return <ProposalListPage />;
 }
