@@ -61,8 +61,8 @@ const emptyAction: CalldataAction = {
 };
 
 const decisionClassName: Record<ReviewDecision, string> = {
-  approved: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
-  rejected: "border-red-500/30 bg-red-500/10 text-red-200",
+  approved: "border-foreground/30 bg-foreground/5 text-foreground",
+  rejected: "border-border bg-muted text-muted-foreground",
 };
 
 function DecisionBadge({ decision }: { decision: ReviewDecision }) {
@@ -191,10 +191,10 @@ function DraftReviewsBadge({ draft }: { draft: Draft }) {
         <MessageSquare className="size-3" />
         {draft.reviews.length}
       </Badge>
-      <Badge variant="outline" className="text-emerald-200">
+      <Badge variant="outline" className="text-foreground">
         {totals.approved} approved
       </Badge>
-      <Badge variant="outline" className="text-red-200">
+      <Badge variant="outline" className="text-muted-foreground">
         {totals.rejected} rejected
       </Badge>
     </div>
@@ -229,7 +229,7 @@ function DraftTable({
               key={draft.id}
               className={cn(
                 "cursor-pointer",
-                draft.id === selectedDraftId && "bg-muted/70"
+                draft.id === selectedDraftId && "bg-muted"
               )}
               onClick={() => onSelect(draft.id)}
             >
@@ -314,7 +314,7 @@ function DraftGraph({
   const byId = new Map(positionedDrafts.map((draft) => [draft.id, draft]));
 
   return (
-    <div className="relative h-[420px] overflow-hidden rounded-lg border bg-muted/20">
+    <div className="relative h-[420px] overflow-hidden rounded-lg border bg-card">
       <svg
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 size-full"
@@ -337,9 +337,7 @@ function DraftGraph({
               d={`M ${parent.x} ${parent.y} C ${midX} ${parent.y}, ${midX} ${draft.y}, ${draft.x} ${draft.y}`}
               fill="none"
               stroke={
-                selected
-                  ? "oklch(0.72 0.16 154)"
-                  : "oklch(0.985 0 0 / 0.18)"
+                selected ? "var(--foreground)" : "var(--border)"
               }
               strokeLinecap="round"
               strokeWidth={selected ? 0.9 : 0.55}
@@ -361,7 +359,7 @@ function DraftGraph({
                   variant={isSelected ? "default" : "outline"}
                   className={cn(
                     "absolute h-14 w-[8.5rem] -translate-x-1/2 -translate-y-1/2 flex-col gap-0.5 rounded-lg px-2 py-2",
-                    !isSelected && "bg-background/90 backdrop-blur"
+                    !isSelected && "bg-background"
                   )}
                   style={{ left: `${draft.x}%`, top: `${draft.y}%` }}
                   onClick={() => onSelect(draft.id)}
@@ -401,7 +399,7 @@ function DraftNavigator({
   );
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border bg-background/60 p-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 rounded-lg border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline" className="font-mono">
@@ -486,7 +484,7 @@ function ActionList({
 function ReviewsList({ reviews }: { reviews: DraftReview[] }) {
   if (reviews.length === 0) {
     return (
-      <div className="rounded-lg border bg-background/60 p-3 text-sm text-muted-foreground">
+      <div className="rounded-lg border bg-card p-3 text-sm text-muted-foreground">
         No reviews recorded for this draft.
       </div>
     );
@@ -495,7 +493,7 @@ function ReviewsList({ reviews }: { reviews: DraftReview[] }) {
   return (
     <div className="space-y-3">
       {reviews.map((review) => (
-        <div key={review.id} className="rounded-lg border bg-background/60 p-3">
+        <div key={review.id} className="rounded-lg border bg-card p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="font-mono text-xs text-muted-foreground">
               {shortAddress(review.reviewer)}
@@ -717,7 +715,7 @@ export function ProposalReviewWorkspace() {
               </div>
               <div className="grid gap-2">
                 <span className="text-xs text-muted-foreground">Extra data</span>
-                <pre className="overflow-x-auto rounded-lg border bg-background/60 p-3 font-mono text-xs text-muted-foreground">
+                <pre className="overflow-x-auto rounded-lg border bg-muted p-3 font-mono text-xs text-muted-foreground">
                   {selectedDraft.extraData || "0x"}
                 </pre>
               </div>
@@ -748,7 +746,7 @@ export function ProposalReviewWorkspace() {
                         key={action.id}
                         className={cn(
                           "cursor-pointer",
-                          action.id === selectedAction.id && "bg-muted/70"
+                          action.id === selectedAction.id && "bg-muted"
                         )}
                         onClick={() => setSelectedActionId(action.id)}
                       >
@@ -887,7 +885,7 @@ export function ProposalReviewWorkspace() {
                   </div>
                 </TabsContent>
                 <TabsContent value="raw" className="pt-2">
-                  <ScrollArea className="h-[220px] rounded-lg border bg-background/60">
+                  <ScrollArea className="h-[220px] rounded-lg border bg-muted">
                     <pre className="whitespace-pre-wrap break-all p-4 font-mono text-xs leading-6 text-muted-foreground">
                       {selectedAction.calldata}
                     </pre>

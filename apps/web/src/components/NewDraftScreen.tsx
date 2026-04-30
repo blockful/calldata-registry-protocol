@@ -251,7 +251,7 @@ export function NewDraftScreen() {
               </CardDescription>
               <CardAction>
                 {created ? (
-                  <Badge variant="outline" className="text-emerald-200">
+                  <Badge variant="outline" className="text-foreground">
                     <CheckCircle2 className="size-3" />
                     Created locally
                   </Badge>
