@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, GitBranch, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, Building2, GitBranch, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,26 +18,24 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { mockProposals, type ProposalStatus, type RiskLevel } from "@/lib/mock-proposals";
+import {
+  mockOrgs,
+  mockProposals,
+  type ProposalStatus,
+} from "@/lib/mock-proposals";
 
 const statusLabel: Record<ProposalStatus, string> = {
-  ready: "Ready",
-  "in-review": "In review",
-  "needs-changes": "Needs changes",
-  executed: "Executed",
+  draft: "Draft",
+  in_review: "In review",
+  approved: "Approved",
+  rejected: "Rejected",
 };
 
 const statusClassName: Record<ProposalStatus, string> = {
-  ready: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
-  "in-review": "border-sky-500/30 bg-sky-500/10 text-sky-200",
-  "needs-changes": "border-amber-500/30 bg-amber-500/10 text-amber-200",
-  executed: "border-violet-500/30 bg-violet-500/10 text-violet-200",
-};
-
-const riskClassName: Record<RiskLevel, string> = {
-  low: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
-  medium: "border-amber-500/30 bg-amber-500/10 text-amber-200",
-  high: "border-red-500/30 bg-red-500/10 text-red-200",
+  draft: "border-border bg-muted text-muted-foreground",
+  in_review: "border-sky-500/30 bg-sky-500/10 text-sky-200",
+  approved: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
+  rejected: "border-red-500/30 bg-red-500/10 text-red-200",
 };
 
 function StatusBadge({ status }: { status: ProposalStatus }) {
@@ -48,12 +46,8 @@ function StatusBadge({ status }: { status: ProposalStatus }) {
   );
 }
 
-function RiskBadge({ risk }: { risk: RiskLevel }) {
-  return (
-    <Badge variant="outline" className={riskClassName[risk]}>
-      {risk} risk
-    </Badge>
-  );
+function getOrgName(orgId: string) {
+  return mockOrgs.find((org) => org.id === orgId)?.name ?? orgId;
 }
 
 export default function DraftsPage() {
@@ -64,29 +58,29 @@ export default function DraftsPage() {
           <div className="mb-3 flex flex-wrap gap-2">
             <Badge variant="secondary">
               <GitBranch className="size-3" />
-              Mock registry
+              Proposals
             </Badge>
-            <Badge variant="outline">{mockProposals.length} proposals</Badge>
+            <Badge variant="outline">{mockOrgs.length} organizations</Badge>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
             Proposal Registry
           </h1>
           <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-            Versioned calldata drafts, reviewer state, and execution readiness
-            represented as production-shaped mock data.
+            A plain list of mocked proposals grouped by organization, version
+            history, and recorded reviews.
           </p>
         </div>
         <Button nativeButton={false} render={<Link href="/" />}>
-          <ShieldCheck className="size-4" />
-          Open review desk
+          <ArrowUpRight className="size-4" />
+          Open app
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Review queue</CardTitle>
+          <CardTitle>All proposals</CardTitle>
           <CardDescription>
-            Proposals are ordered by reviewer attention and execution state.
+            Use the app view to filter by organization and inspect the graph.
           </CardDescription>
           <CardAction>
             <Button
@@ -95,7 +89,6 @@ export default function DraftsPage() {
               nativeButton={false}
               render={<Link href="/" />}
             >
-              <ArrowUpRight className="size-4" />
               Review
             </Button>
           </CardAction>
@@ -105,46 +98,50 @@ export default function DraftsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Proposal</TableHead>
-                <TableHead>Org</TableHead>
+                <TableHead>Organization</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Risk</TableHead>
-                <TableHead>Version</TableHead>
-                <TableHead>Updated</TableHead>
+                <TableHead>Versions</TableHead>
+                <TableHead>Reviews</TableHead>
+                <TableHead>Created</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockProposals.map((proposal) => {
-                const activeVersion =
-                  proposal.versions.find(
-                    (version) => version.id === proposal.activeVersionId
-                  ) ?? proposal.versions[0];
-
-                return (
-                  <TableRow key={proposal.id}>
-                    <TableCell>
-                      <div className="grid gap-1">
-                        <span className="font-medium">{proposal.title}</span>
-                        <span className="font-mono text-xs text-muted-foreground">
-                          {proposal.id}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{proposal.org}</TableCell>
-                    <TableCell>
-                      <StatusBadge status={proposal.status} />
-                    </TableCell>
-                    <TableCell>
-                      <RiskBadge risk={proposal.risk} />
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {activeVersion.id}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {proposal.updatedAt}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+              {mockProposals.map((proposal) => (
+                <TableRow key={proposal.id}>
+                  <TableCell>
+                    <div className="grid gap-1">
+                      <span className="font-medium">{proposal.title}</span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {proposal.id}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center gap-2">
+                      <Building2 className="size-4 text-muted-foreground" />
+                      {getOrgName(proposal.orgId)}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={proposal.status} />
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">
+                      <GitBranch className="size-3" />
+                      {proposal.versions.length}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">
+                      <MessageSquare className="size-3" />
+                      {proposal.reviews.length}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {proposal.createdAt}
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </CardContent>

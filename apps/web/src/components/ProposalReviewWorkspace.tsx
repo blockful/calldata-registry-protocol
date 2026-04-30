@@ -2,25 +2,21 @@
 
 import { useMemo, useState } from "react";
 import {
-  AlertTriangle,
-  Check,
+  Building2,
   CheckCircle2,
-  Clock,
+  ChevronLeft,
+  ChevronRight,
   Code2,
   GitBranch,
-  History,
-  Network,
+  MessageSquare,
+  Plus,
   Search,
-  ShieldCheck,
-  SlidersHorizontal,
   XCircle,
 } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -28,9 +24,13 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
@@ -57,33 +57,40 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
+  mockOrgs,
   mockProposals,
   type CalldataAction,
   type Proposal,
   type ProposalStatus,
   type ProposalVersion,
-  type ReviewCheck,
-  type RiskLevel,
+  type Review,
+  type ReviewDecision,
 } from "@/lib/mock-proposals";
 
 const statusLabel: Record<ProposalStatus, string> = {
-  ready: "Ready",
-  "in-review": "In review",
-  "needs-changes": "Needs changes",
-  executed: "Executed",
+  draft: "Draft",
+  in_review: "In review",
+  approved: "Approved",
+  rejected: "Rejected",
 };
 
 const statusClassName: Record<ProposalStatus, string> = {
-  ready: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
-  "in-review": "border-sky-500/30 bg-sky-500/10 text-sky-200",
-  "needs-changes": "border-amber-500/30 bg-amber-500/10 text-amber-200",
-  executed: "border-violet-500/30 bg-violet-500/10 text-violet-200",
+  draft: "border-border bg-muted text-muted-foreground",
+  in_review: "border-sky-500/30 bg-sky-500/10 text-sky-200",
+  approved: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
+  rejected: "border-red-500/30 bg-red-500/10 text-red-200",
 };
 
-const riskClassName: Record<RiskLevel, string> = {
-  low: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
-  medium: "border-amber-500/30 bg-amber-500/10 text-amber-200",
-  high: "border-red-500/30 bg-red-500/10 text-red-200",
+const decisionClassName: Record<ReviewDecision, string> = {
+  approved: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
+  rejected: "border-red-500/30 bg-red-500/10 text-red-200",
+};
+
+const emptyAction: CalldataAction = {
+  id: "new-action",
+  target: "",
+  value: "0",
+  calldata: "0x",
 };
 
 function StatusBadge({ status }: { status: ProposalStatus }) {
@@ -94,40 +101,40 @@ function StatusBadge({ status }: { status: ProposalStatus }) {
   );
 }
 
-function RiskBadge({ risk }: { risk: RiskLevel }) {
+function DecisionBadge({ decision }: { decision: ReviewDecision }) {
+  const Icon = decision === "approved" ? CheckCircle2 : XCircle;
+
   return (
-    <Badge variant="outline" className={riskClassName[risk]}>
-      {risk} risk
+    <Badge variant="outline" className={decisionClassName[decision]}>
+      <Icon className="size-3" />
+      {decision}
     </Badge>
   );
 }
 
-function CheckStateIcon({ state }: { state: ReviewCheck["state"] }) {
-  if (state === "pass") {
-    return <CheckCircle2 className="size-4 text-emerald-300" />;
-  }
-
-  if (state === "warn") {
-    return <AlertTriangle className="size-4 text-amber-300" />;
-  }
-
-  return <XCircle className="size-4 text-red-300" />;
+function selectorFromCalldata(calldata: string) {
+  return calldata.startsWith("0x") && calldata.length >= 10
+    ? calldata.slice(0, 10)
+    : "0x";
 }
 
-function shortHex(value: string) {
+function shortAddress(value: string) {
   if (value.length <= 14) return value;
   return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
 
-function getSelectedVersion(proposal: Proposal, selectedVersionId: string) {
+function getOrgName(orgId: string) {
+  return mockOrgs.find((org) => org.id === orgId)?.name ?? orgId;
+}
+
+function getSelectedVersion(proposal: Proposal, versionId: string) {
   return (
-    proposal.versions.find((version) => version.id === selectedVersionId) ??
-    proposal.versions.find((version) => version.id === proposal.activeVersionId) ??
-    proposal.versions[0]
+    proposal.versions.find((version) => version.id === versionId) ??
+    proposal.versions[proposal.versions.length - 1]
   );
 }
 
-function ProposalQueue({
+function ProposalList({
   proposals,
   selectedProposalId,
   onSelect,
@@ -138,36 +145,34 @@ function ProposalQueue({
 }) {
   return (
     <div className="space-y-2">
-      {proposals.map((proposal) => {
-        const isSelected = proposal.id === selectedProposalId;
-
-        return (
-          <Button
-            key={proposal.id}
-            type="button"
-            variant={isSelected ? "secondary" : "ghost"}
-            className="h-auto w-full items-stretch justify-start whitespace-normal rounded-lg px-3 py-3 text-left"
-            onClick={() => onSelect(proposal.id)}
-          >
-            <span className="flex min-w-0 flex-1 flex-col gap-2">
-              <span className="flex min-w-0 items-center justify-between gap-3">
-                <span className="truncate font-medium">{proposal.title}</span>
-                <span className="font-mono text-[0.7rem] text-muted-foreground">
-                  {proposal.id}
-                </span>
+      {proposals.map((proposal) => (
+        <Button
+          key={proposal.id}
+          type="button"
+          variant={proposal.id === selectedProposalId ? "secondary" : "ghost"}
+          className="h-auto w-full justify-start whitespace-normal rounded-lg px-3 py-3 text-left"
+          onClick={() => onSelect(proposal.id)}
+        >
+          <span className="flex min-w-0 flex-1 flex-col gap-2">
+            <span className="flex items-start justify-between gap-3">
+              <span className="min-w-0 truncate font-medium">
+                {proposal.title}
               </span>
-              <span className="flex flex-wrap items-center gap-1.5">
-                <StatusBadge status={proposal.status} />
-                <RiskBadge risk={proposal.risk} />
-              </span>
-              <span className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                <span className="truncate">{proposal.org}</span>
-                <span>{proposal.updatedAt}</span>
+              <span className="font-mono text-xs text-muted-foreground">
+                {proposal.id}
               </span>
             </span>
-          </Button>
-        );
-      })}
+            <span className="flex flex-wrap items-center gap-2">
+              <StatusBadge status={proposal.status} />
+              <Badge variant="outline">{proposal.versions.length} versions</Badge>
+              <Badge variant="outline">{proposal.reviews.length} reviews</Badge>
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {getOrgName(proposal.orgId)}
+            </span>
+          </span>
+        </Button>
+      ))}
     </div>
   );
 }
@@ -186,7 +191,7 @@ function VersionGraph({
   );
 
   return (
-    <div className="relative h-[320px] min-h-[320px] overflow-hidden rounded-lg border bg-muted/20">
+    <div className="relative h-[320px] overflow-hidden rounded-lg border bg-muted/20">
       <svg
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 size-full"
@@ -199,8 +204,7 @@ function VersionGraph({
             if (!parent) return null;
 
             const selected =
-              version.id === selectedVersion.id ||
-              parent.id === selectedVersion.id;
+              parent.id === selectedVersion.id || version.id === selectedVersion.id;
             const midX = (parent.x + version.x) / 2;
 
             return (
@@ -208,8 +212,11 @@ function VersionGraph({
                 key={`${parentId}-${version.id}`}
                 d={`M ${parent.x} ${parent.y} C ${midX} ${parent.y}, ${midX} ${version.y}, ${version.x} ${version.y}`}
                 fill="none"
-                stroke={selected ? "oklch(0.76 0.15 155)" : "oklch(0.985 0 0 / 0.18)"}
-                strokeDasharray={version.label === "alt" ? "3 3" : undefined}
+                stroke={
+                  selected
+                    ? "oklch(0.72 0.16 154)"
+                    : "oklch(0.985 0 0 / 0.18)"
+                }
                 strokeLinecap="round"
                 strokeWidth={selected ? 0.9 : 0.55}
               />
@@ -229,7 +236,7 @@ function VersionGraph({
                   type="button"
                   variant={isSelected ? "default" : "outline"}
                   className={cn(
-                    "absolute h-14 w-[8.4rem] -translate-x-1/2 -translate-y-1/2 flex-col gap-0.5 rounded-lg px-2 py-2 shadow-sm",
+                    "absolute h-14 w-[8.25rem] -translate-x-1/2 -translate-y-1/2 flex-col gap-0.5 rounded-lg px-2 py-2",
                     !isSelected && "bg-background/90 backdrop-blur"
                   )}
                   style={{ left: `${version.x}%`, top: `${version.y}%` }}
@@ -245,9 +252,7 @@ function VersionGraph({
                 {version.id}
               </span>
             </TooltipTrigger>
-            <TooltipContent>
-              <span>{version.title}</span>
-            </TooltipContent>
+            <TooltipContent>{version.summary}</TooltipContent>
           </Tooltip>
         );
       })}
@@ -255,50 +260,61 @@ function VersionGraph({
   );
 }
 
-function VersionDetails({ version }: { version: ProposalVersion }) {
+function VersionNavigator({
+  proposal,
+  selectedVersion,
+  onSelect,
+}: {
+  proposal: Proposal;
+  selectedVersion: ProposalVersion;
+  onSelect: (versionId: string) => void;
+}) {
+  const selectedIndex = proposal.versions.findIndex(
+    (version) => version.id === selectedVersion.id
+  );
+  const previousVersion = proposal.versions[selectedIndex - 1];
+  const nextVersion = proposal.versions[selectedIndex + 1];
+
   return (
-    <div className="grid gap-4 md:grid-cols-[1fr_0.8fr]">
-      <div className="space-y-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-medium">{version.title}</h3>
-            <StatusBadge status={version.status} />
-            <RiskBadge risk={version.risk} />
-          </div>
-          <p className="mt-2 text-sm text-muted-foreground">{version.summary}</p>
+    <div className="flex flex-col gap-3 rounded-lg border bg-background/60 p-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="font-mono">
+            {selectedVersion.id}
+          </Badge>
+          <span className="text-sm font-medium">{selectedVersion.label}</span>
         </div>
-
-        <div className="flex flex-wrap gap-2">
-          {version.changes.map((change) => (
-            <Badge key={change} variant="secondary">
-              <Check className="size-3" />
-              {change}
-            </Badge>
-          ))}
-        </div>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {selectedVersion.summary}
+        </p>
       </div>
-
-      <div className="grid gap-2 rounded-lg border bg-background/60 p-3 text-sm">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-muted-foreground">Author</span>
-          <span className="font-mono">{version.author}</span>
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-muted-foreground">Timestamp</span>
-          <span>{version.timestamp}</span>
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-muted-foreground">Parents</span>
-          <span className="font-mono">
-            {version.parentIds.length ? version.parentIds.join(", ") : "root"}
-          </span>
-        </div>
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!previousVersion}
+          onClick={() => previousVersion && onSelect(previousVersion.id)}
+        >
+          <ChevronLeft className="size-4" />
+          Previous
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!nextVersion}
+          onClick={() => nextVersion && onSelect(nextVersion.id)}
+        >
+          Next
+          <ChevronRight className="size-4" />
+        </Button>
       </div>
     </div>
   );
 }
 
-function ActionPicker({
+function ActionList({
   actions,
   selectedActionId,
   onSelect,
@@ -309,166 +325,64 @@ function ActionPicker({
 }) {
   return (
     <div className="grid gap-2">
-      {actions.map((action, index) => {
-        const isSelected = action.id === selectedActionId;
-
-        return (
-          <Button
-            key={action.id}
-            type="button"
-            variant={isSelected ? "secondary" : "ghost"}
-            className="h-auto justify-start whitespace-normal rounded-lg px-3 py-2 text-left"
-            onClick={() => onSelect(action.id)}
-          >
-            <span className="flex w-full min-w-0 items-start gap-3">
-              <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[0.7rem] text-muted-foreground">
-                {String(index + 1).padStart(2, "0")}
+      {actions.map((action, index) => (
+        <Button
+          key={action.id}
+          type="button"
+          variant={action.id === selectedActionId ? "secondary" : "ghost"}
+          className="h-auto justify-start whitespace-normal rounded-lg px-3 py-2 text-left"
+          onClick={() => onSelect(action.id)}
+        >
+          <span className="flex w-full items-start gap-3">
+            <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+              {String(index + 1).padStart(2, "0")}
+            </span>
+            <span className="grid min-w-0 gap-1">
+              <span className="font-mono text-xs">
+                {selectorFromCalldata(action.calldata)}
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">
-                  {action.label}
-                </span>
-                <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span className="font-mono">{action.selector}</span>
-                  <RiskBadge risk={action.risk} />
-                </span>
+              <span className="truncate text-xs text-muted-foreground">
+                {shortAddress(action.target)}
               </span>
             </span>
-          </Button>
-        );
-      })}
+          </span>
+        </Button>
+      ))}
     </div>
   );
 }
 
-function CalldataReview({
-  proposal,
-  selectedAction,
+function ReviewsList({
+  reviews,
+  selectedVersionId,
 }: {
-  proposal: Proposal;
-  selectedAction: CalldataAction;
+  reviews: Review[];
+  selectedVersionId: string;
 }) {
-  const failingChecks = proposal.checks.filter((check) => check.state === "fail");
-  const warningChecks = proposal.checks.filter((check) => check.state === "warn");
-
-  return (
-    <Tabs defaultValue="decoded" className="min-h-0">
-      <TabsList className="w-full justify-start">
-        <TabsTrigger value="decoded">
-          <Code2 className="size-4" />
-          Decoded
-        </TabsTrigger>
-        <TabsTrigger value="raw">
-          <Network className="size-4" />
-          Raw
-        </TabsTrigger>
-        <TabsTrigger value="checks">
-          <ShieldCheck className="size-4" />
-          Checks
-        </TabsTrigger>
-      </TabsList>
-
-      <TabsContent value="decoded" className="space-y-4 pt-2">
-        {failingChecks.length > 0 ? (
-          <Alert variant="destructive">
-            <AlertTriangle className="size-4" />
-            <AlertTitle>Blocked by review check</AlertTitle>
-            <AlertDescription>{failingChecks[0].detail}</AlertDescription>
-          </Alert>
-        ) : warningChecks.length > 0 ? (
-          <Alert>
-            <AlertTriangle className="size-4 text-amber-300" />
-            <AlertTitle>Review warning</AlertTitle>
-            <AlertDescription>{warningChecks[0].detail}</AlertDescription>
-          </Alert>
-        ) : null}
-
-        <div className="grid gap-3 rounded-lg border bg-background/60 p-3">
-          <div className="grid gap-1">
-            <span className="text-xs text-muted-foreground">Target</span>
-            <span className="font-mono text-sm">
-              {selectedAction.targetName} {shortHex(selectedAction.target)}
-            </span>
-          </div>
-          <div className="grid gap-1">
-            <span className="text-xs text-muted-foreground">Function</span>
-            <span className="font-mono text-sm">{selectedAction.signature}</span>
-          </div>
-          <div className="grid gap-1">
-            <span className="text-xs text-muted-foreground">Simulation</span>
-            <span className="text-sm">{selectedAction.simulation}</span>
-          </div>
-        </div>
-
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Argument</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Value</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {selectedAction.decodedArgs.map((arg) => (
-              <TableRow key={`${arg.name}-${arg.type}`}>
-                <TableCell className="font-medium">{arg.name}</TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground">
-                  {arg.type}
-                </TableCell>
-                <TableCell className="max-w-[12rem] truncate font-mono text-xs">
-                  {arg.value}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TabsContent>
-
-      <TabsContent value="raw" className="pt-2">
-        <ScrollArea className="h-[270px] rounded-lg border bg-background/60">
-          <pre className="whitespace-pre-wrap break-all p-4 font-mono text-xs leading-6 text-muted-foreground">
-            {selectedAction.calldata}
-          </pre>
-        </ScrollArea>
-      </TabsContent>
-
-      <TabsContent value="checks" className="space-y-3 pt-2">
-        {proposal.checks.map((check) => (
-          <div
-            key={check.label}
-            className="flex items-start gap-3 rounded-lg border bg-background/60 p-3"
-          >
-            <CheckStateIcon state={check.state} />
-            <div className="grid gap-1">
-              <span className="text-sm font-medium">{check.label}</span>
-              <span className="text-sm text-muted-foreground">{check.detail}</span>
-            </div>
-          </div>
-        ))}
-      </TabsContent>
-    </Tabs>
+  const visibleReviews = reviews.filter(
+    (review) => review.versionId === selectedVersionId
   );
-}
 
-function ReviewTimeline({ proposal }: { proposal: Proposal }) {
+  if (visibleReviews.length === 0) {
+    return (
+      <div className="rounded-lg border bg-background/60 p-3 text-sm text-muted-foreground">
+        No reviews recorded for this version.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
-      {proposal.events.map((event) => (
-        <div key={`${event.actor}-${event.timestamp}`} className="flex gap-3">
-          <div className="mt-1 flex size-7 items-center justify-center rounded-full border bg-background">
-            <History className="size-3.5 text-muted-foreground" />
+      {visibleReviews.map((review) => (
+        <div key={review.id} className="rounded-lg border bg-background/60 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-mono text-xs text-muted-foreground">
+              {review.reviewer}
+            </span>
+            <DecisionBadge decision={review.decision} />
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-mono text-xs text-muted-foreground">
-                {event.actor}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {event.timestamp}
-              </span>
-            </div>
-            <p className="mt-1 text-sm">{event.action}</p>
-          </div>
+          <p className="mt-2 text-sm">{review.comment}</p>
+          <p className="mt-2 text-xs text-muted-foreground">{review.createdAt}</p>
         </div>
       ))}
     </div>
@@ -476,243 +390,415 @@ function ReviewTimeline({ proposal }: { proposal: Proposal }) {
 }
 
 export function ProposalReviewWorkspace() {
+  const [proposals, setProposals] = useState<Proposal[]>(mockProposals);
+  const [selectedOrgId, setSelectedOrgId] = useState(mockOrgs[0].id);
   const [selectedProposalId, setSelectedProposalId] = useState(mockProposals[0].id);
   const [selectedVersionId, setSelectedVersionId] = useState(
-    mockProposals[0].activeVersionId
+    mockProposals[0].versions[mockProposals[0].versions.length - 1].id
   );
   const [selectedActionId, setSelectedActionId] = useState(
-    mockProposals[0].actions[0].id
+    mockProposals[0].versions[mockProposals[0].versions.length - 1].actions[0].id
   );
   const [query, setQuery] = useState("");
+  const [reviewer, setReviewer] = useState("0xReviewer");
+  const [reviewComment, setReviewComment] = useState("");
+  const [newProposal, setNewProposal] = useState({
+    title: "",
+    description: "",
+    orgId: mockOrgs[0].id,
+    target: "",
+    value: "0",
+    calldata: "0x",
+  });
 
   const selectedProposal =
-    mockProposals.find((proposal) => proposal.id === selectedProposalId) ??
-    mockProposals[0];
-
+    proposals.find((proposal) => proposal.id === selectedProposalId) ??
+    proposals[0];
   const selectedVersion = getSelectedVersion(selectedProposal, selectedVersionId);
-
   const selectedAction =
-    selectedProposal.actions.find((action) => action.id === selectedActionId) ??
-    selectedProposal.actions[0];
+    selectedVersion.actions.find((action) => action.id === selectedActionId) ??
+    selectedVersion.actions[0] ??
+    emptyAction;
 
   const filteredProposals = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) return mockProposals;
 
-    return mockProposals.filter((proposal) =>
-      [proposal.id, proposal.title, proposal.org, proposal.chain]
-        .join(" ")
-        .toLowerCase()
-        .includes(normalizedQuery)
-    );
-  }, [query]);
+    return proposals.filter((proposal) => {
+      const matchesOrg = proposal.orgId === selectedOrgId;
+      const matchesQuery =
+        !normalizedQuery ||
+        [proposal.id, proposal.title, proposal.description]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedQuery);
+
+      return matchesOrg && matchesQuery;
+    });
+  }, [proposals, query, selectedOrgId]);
 
   function selectProposal(proposalId: string) {
-    const nextProposal =
-      mockProposals.find((proposal) => proposal.id === proposalId) ??
-      mockProposals[0];
+    const proposal = proposals.find((item) => item.id === proposalId);
+    if (!proposal) return;
 
-    setSelectedProposalId(nextProposal.id);
-    setSelectedVersionId(nextProposal.activeVersionId);
-    setSelectedActionId(nextProposal.actions[0].id);
+    const nextVersion = proposal.versions[proposal.versions.length - 1];
+    setSelectedProposalId(proposal.id);
+    setSelectedOrgId(proposal.orgId);
+    setSelectedVersionId(nextVersion.id);
+    setSelectedActionId(nextVersion.actions[0]?.id ?? "");
+  }
+
+  function selectVersion(versionId: string) {
+    const version = selectedProposal.versions.find((item) => item.id === versionId);
+    if (!version) return;
+
+    setSelectedVersionId(version.id);
+    setSelectedActionId(version.actions[0]?.id ?? "");
+  }
+
+  function updateSelectedAction(nextAction: CalldataAction) {
+    setProposals((current) =>
+      current.map((proposal) => {
+        if (proposal.id !== selectedProposal.id) return proposal;
+
+        return {
+          ...proposal,
+          versions: proposal.versions.map((version) => {
+            if (version.id !== selectedVersion.id) return version;
+
+            return {
+              ...version,
+              actions: version.actions.map((action) =>
+                action.id === nextAction.id ? nextAction : action
+              ),
+            };
+          }),
+        };
+      })
+    );
+  }
+
+  function submitReview(decision: ReviewDecision) {
+    if (!selectedAction.id || !reviewComment.trim()) return;
+
+    const nextReview: Review = {
+      id: `review-${Date.now()}`,
+      versionId: selectedVersion.id,
+      actionId: selectedAction.id,
+      reviewer,
+      decision,
+      comment: reviewComment.trim(),
+      createdAt: "Just now",
+    };
+
+    setProposals((current) =>
+      current.map((proposal) =>
+        proposal.id === selectedProposal.id
+          ? {
+              ...proposal,
+              status: decision,
+              reviews: [nextReview, ...proposal.reviews],
+            }
+          : proposal
+      )
+    );
+    setReviewComment("");
+  }
+
+  function createProposal() {
+    if (
+      !newProposal.title.trim() ||
+      !newProposal.target.trim() ||
+      !newProposal.calldata.trim()
+    ) {
+      return;
+    }
+
+    const index = proposals.length + 1;
+    const proposalId = `prop-${String(index).padStart(3, "0")}`;
+    const versionId = `${proposalId}-v1`;
+    const actionId = `${versionId}-a1`;
+    const proposal: Proposal = {
+      id: proposalId,
+      orgId: newProposal.orgId,
+      title: newProposal.title.trim(),
+      description: newProposal.description.trim() || "No description provided.",
+      status: "draft",
+      createdAt: "Just now",
+      versions: [
+        {
+          id: versionId,
+          label: "v1",
+          parentIds: [],
+          author: "current user",
+          createdAt: "Just now",
+          summary: "Initial version created from the form.",
+          x: 50,
+          y: 50,
+          actions: [
+            {
+              id: actionId,
+              target: newProposal.target.trim(),
+              value: newProposal.value.trim() || "0",
+              calldata: newProposal.calldata.trim(),
+            },
+          ],
+        },
+      ],
+      reviews: [],
+    };
+
+    setProposals((current) => [proposal, ...current]);
+    setSelectedOrgId(proposal.orgId);
+    setSelectedProposalId(proposal.id);
+    setSelectedVersionId(versionId);
+    setSelectedActionId(actionId);
+    setNewProposal({
+      title: "",
+      description: "",
+      orgId: newProposal.orgId,
+      target: "",
+      value: "0",
+      calldata: "0x",
+    });
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+    <div className="mx-auto grid w-full max-w-[1440px] gap-6 px-4 py-6 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
+        <div>
+          <div className="mb-3 flex flex-wrap gap-2">
             <Badge variant="secondary">
-              <Clock className="size-3" />
-              Mock review state
+              <Building2 className="size-3" />
+              {getOrgName(selectedProposal.orgId)}
             </Badge>
             <StatusBadge status={selectedProposal.status} />
-            <RiskBadge risk={selectedProposal.risk} />
           </div>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-              Calldata Review Desk
-            </h1>
-            <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-              {selectedProposal.description}
-            </p>
-          </div>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+            Calldata Proposal Review
+          </h1>
+          <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+            Create proposals, find them by organization, navigate their version
+            graph, edit calldata, and record review decisions.
+          </p>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Select
-            value={selectedProposalId}
-            onValueChange={(value) => {
-              if (typeof value === "string") selectProposal(value);
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-[280px]">
-              <SelectValue placeholder="Select proposal" />
-            </SelectTrigger>
-            <SelectContent align="end">
-              {mockProposals.map((proposal) => (
-                <SelectItem key={proposal.id} value={proposal.id}>
-                  {proposal.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Sheet>
-            <SheetTrigger
-              render={
-                <Button variant="outline" className="lg:hidden">
-                  <SlidersHorizontal className="size-4" />
-                  Queue
-                </Button>
-              }
-            />
-            <SheetContent className="w-[min(92vw,420px)]">
-              <SheetHeader>
-                <SheetTitle>Proposal queue</SheetTitle>
-                <SheetDescription>
-                  {filteredProposals.length} review items
-                </SheetDescription>
-              </SheetHeader>
-              <div className="px-4">
-                <ProposalQueue
-                  proposals={filteredProposals}
-                  selectedProposalId={selectedProposalId}
-                  onSelect={selectProposal}
-                />
-              </div>
-            </SheetContent>
-          </Sheet>
-        </div>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Review score</CardTitle>
-            <CardAction>
-              <ShieldCheck className="size-4 text-muted-foreground" />
-            </CardAction>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Confidence</span>
-              <span className="font-mono">{selectedProposal.reviewScore}%</span>
+        <Sheet>
+          <SheetTrigger
+            render={
+              <Button variant="outline" className="lg:hidden">
+                <Search className="size-4" />
+                Find proposals
+              </Button>
+            }
+          />
+          <SheetContent className="w-[min(92vw,420px)]">
+            <SheetHeader>
+              <SheetTitle>Find proposals</SheetTitle>
+              <SheetDescription>
+                Filter by organization and proposal text.
+              </SheetDescription>
+            </SheetHeader>
+            <div className="grid gap-4 px-4">
+              <OrgAndSearch
+                selectedOrgId={selectedOrgId}
+                setSelectedOrgId={setSelectedOrgId}
+                query={query}
+                setQuery={setQuery}
+              />
+              <ProposalList
+                proposals={filteredProposals}
+                selectedProposalId={selectedProposal.id}
+                onSelect={selectProposal}
+              />
             </div>
-            <Progress value={selectedProposal.reviewScore} />
-          </CardContent>
-        </Card>
-
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Approvals</CardTitle>
-            <CardDescription>
-              {selectedProposal.approvals} of {selectedProposal.requiredApprovals}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-1">
-              {Array.from({ length: selectedProposal.requiredApprovals }).map(
-                (_, index) => (
-                  <div
-                    key={index}
-                    className={cn(
-                      "h-2 flex-1 rounded-full bg-muted",
-                      index < selectedProposal.approvals && "bg-primary"
-                    )}
-                  />
-                )
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Active version</CardTitle>
-            <CardDescription>{selectedVersion.title}</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            <Badge variant="outline" className="font-mono">
-              {selectedVersion.id}
-            </Badge>
-            <Badge variant="secondary">{selectedProposal.chain}</Badge>
-          </CardContent>
-        </Card>
+          </SheetContent>
+        </Sheet>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)_420px]">
         <aside className="hidden lg:block">
           <Card className="sticky top-20">
             <CardHeader>
-              <CardTitle>Proposal queue</CardTitle>
+              <CardTitle>Find proposals</CardTitle>
               <CardDescription>
-                Production-shaped state with active review outcomes
+                Filter the proposal list by organization.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="proposal-search">Search</Label>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="proposal-search"
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    className="pl-8"
-                    placeholder="Proposal, org, chain"
-                  />
-                </div>
-              </div>
-              <ProposalQueue
+              <OrgAndSearch
+                selectedOrgId={selectedOrgId}
+                setSelectedOrgId={setSelectedOrgId}
+                query={query}
+                setQuery={setQuery}
+              />
+              <ProposalList
                 proposals={filteredProposals}
-                selectedProposalId={selectedProposalId}
+                selectedProposalId={selectedProposal.id}
                 onSelect={selectProposal}
               />
             </CardContent>
           </Card>
         </aside>
 
-        <div className="grid min-w-0 gap-6">
+        <main className="grid min-w-0 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Create proposal</CardTitle>
+              <CardDescription>
+                Start with one target, value, and calldata payload.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="new-title">Title</Label>
+                  <Input
+                    id="new-title"
+                    value={newProposal.title}
+                    onChange={(event) =>
+                      setNewProposal((current) => ({
+                        ...current,
+                        title: event.target.value,
+                      }))
+                    }
+                    placeholder="Proposal title"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Organization</Label>
+                  <Select
+                    value={newProposal.orgId}
+                    onValueChange={(value) => {
+                      if (typeof value === "string") {
+                        setNewProposal((current) => ({
+                          ...current,
+                          orgId: value,
+                        }));
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <span>{getOrgName(newProposal.orgId)}</span>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {mockOrgs.map((org) => (
+                        <SelectItem key={org.id} value={org.id}>
+                          {org.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="new-description">Description</Label>
+                <Textarea
+                  id="new-description"
+                  value={newProposal.description}
+                  onChange={(event) =>
+                    setNewProposal((current) => ({
+                      ...current,
+                      description: event.target.value,
+                    }))
+                  }
+                  placeholder="What should reviewers verify?"
+                />
+              </div>
+              <div className="grid gap-4 md:grid-cols-[1fr_120px]">
+                <div className="grid gap-2">
+                  <Label htmlFor="new-target">Target</Label>
+                  <Input
+                    id="new-target"
+                    value={newProposal.target}
+                    onChange={(event) =>
+                      setNewProposal((current) => ({
+                        ...current,
+                        target: event.target.value,
+                      }))
+                    }
+                    className="font-mono"
+                    placeholder="0x..."
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="new-value">Value</Label>
+                  <Input
+                    id="new-value"
+                    value={newProposal.value}
+                    onChange={(event) =>
+                      setNewProposal((current) => ({
+                        ...current,
+                        value: event.target.value,
+                      }))
+                    }
+                    className="font-mono"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="new-calldata">Calldata</Label>
+                <Textarea
+                  id="new-calldata"
+                  value={newProposal.calldata}
+                  onChange={(event) =>
+                    setNewProposal((current) => ({
+                      ...current,
+                      calldata: event.target.value,
+                    }))
+                  }
+                  className="min-h-[104px] font-mono text-xs"
+                />
+              </div>
+              <Button type="button" onClick={createProposal}>
+                <Plus className="size-4" />
+                Create proposal
+              </Button>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <GitBranch className="size-4" />
-                Version graph
+                Proposal history
               </CardTitle>
               <CardDescription>
-                {selectedProposal.title} on {selectedProposal.chain}
+                {selectedProposal.title} in {getOrgName(selectedProposal.orgId)}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <VersionGraph
                 proposal={selectedProposal}
                 selectedVersion={selectedVersion}
-                onSelect={setSelectedVersionId}
+                onSelect={selectVersion}
               />
-              <VersionDetails version={selectedVersion} />
+              <VersionNavigator
+                proposal={selectedProposal}
+                selectedVersion={selectedVersion}
+                onSelect={selectVersion}
+              />
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Execution plan</CardTitle>
+              <CardTitle>Version calldata</CardTitle>
               <CardDescription>
-                {selectedProposal.actions.length} encoded calls in review
+                Select a row to edit that calldata in the review panel.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Call</TableHead>
+                    <TableHead>Action</TableHead>
                     <TableHead>Target</TableHead>
+                    <TableHead>Value</TableHead>
                     <TableHead>Selector</TableHead>
-                    <TableHead>Risk</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {selectedProposal.actions.map((action) => (
+                  {selectedVersion.actions.map((action, index) => (
                     <TableRow
                       key={action.id}
                       className={cn(
@@ -721,15 +807,15 @@ export function ProposalReviewWorkspace() {
                       )}
                       onClick={() => setSelectedActionId(action.id)}
                     >
-                      <TableCell className="font-medium">{action.label}</TableCell>
+                      <TableCell>{String(index + 1).padStart(2, "0")}</TableCell>
                       <TableCell className="font-mono text-xs">
-                        {shortHex(action.target)}
+                        {shortAddress(action.target)}
                       </TableCell>
                       <TableCell className="font-mono text-xs">
-                        {action.selector}
+                        {action.value}
                       </TableCell>
-                      <TableCell>
-                        <RiskBadge risk={action.risk} />
+                      <TableCell className="font-mono text-xs">
+                        {selectorFromCalldata(action.calldata)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -737,60 +823,194 @@ export function ProposalReviewWorkspace() {
               </Table>
             </CardContent>
           </Card>
-        </div>
+        </main>
 
-        <div className="grid min-w-0 gap-6">
+        <section className="grid min-w-0 gap-6 content-start">
           <Card>
             <CardHeader>
-              <CardTitle>Calldata review</CardTitle>
-              <CardDescription>{selectedAction.label}</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <Code2 className="size-4" />
+                Calldata review
+              </CardTitle>
+              <CardDescription>{selectedVersion.id}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <ActionPicker
-                actions={selectedProposal.actions}
+              <ActionList
+                actions={selectedVersion.actions}
                 selectedActionId={selectedAction.id}
                 onSelect={setSelectedActionId}
               />
               <Separator />
-              <CalldataReview
-                proposal={selectedProposal}
-                selectedAction={selectedAction}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Reviewer notes</CardTitle>
-              <CardDescription>Current handoff state</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Textarea
-                value={`Version: ${selectedVersion.id}\nAction: ${selectedAction.label}\nDecision: ${selectedProposal.status === "ready" ? "approve when quorum completes" : "hold for reviewer changes"}`}
-                readOnly
-                className="min-h-[116px] resize-none font-mono text-xs"
-              />
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm">
-                  <CheckCircle2 className="size-4" />
-                  Approve
-                </Button>
-                <Button type="button" size="sm" variant="outline">
-                  <AlertTriangle className="size-4" />
-                  Flag
-                </Button>
+              <div className="grid gap-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="target">Target</Label>
+                  <Input
+                    id="target"
+                    value={selectedAction.target}
+                    onChange={(event) =>
+                      updateSelectedAction({
+                        ...selectedAction,
+                        target: event.target.value,
+                      })
+                    }
+                    className="font-mono"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="value">Value</Label>
+                  <Input
+                    id="value"
+                    value={selectedAction.value}
+                    onChange={(event) =>
+                      updateSelectedAction({
+                        ...selectedAction,
+                        value: event.target.value,
+                      })
+                    }
+                    className="font-mono"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="calldata">Calldata</Label>
+                  <Textarea
+                    id="calldata"
+                    value={selectedAction.calldata}
+                    onChange={(event) =>
+                      updateSelectedAction({
+                        ...selectedAction,
+                        calldata: event.target.value,
+                      })
+                    }
+                    className="min-h-[160px] font-mono text-xs"
+                  />
+                </div>
               </div>
+
+              <Tabs defaultValue="review">
+                <TabsList className="w-full justify-start">
+                  <TabsTrigger value="review">
+                    <MessageSquare className="size-4" />
+                    Review
+                  </TabsTrigger>
+                  <TabsTrigger value="raw">
+                    <Code2 className="size-4" />
+                    Raw
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="review" className="space-y-3 pt-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="reviewer">Reviewer</Label>
+                    <Input
+                      id="reviewer"
+                      value={reviewer}
+                      onChange={(event) => setReviewer(event.target.value)}
+                      className="font-mono"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="review-comment">Review note</Label>
+                    <Textarea
+                      id="review-comment"
+                      value={reviewComment}
+                      onChange={(event) => setReviewComment(event.target.value)}
+                      placeholder="What did you verify?"
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      onClick={() => submitReview("approved")}
+                      disabled={!reviewComment.trim()}
+                    >
+                      <CheckCircle2 className="size-4" />
+                      Approve
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => submitReview("rejected")}
+                      disabled={!reviewComment.trim()}
+                    >
+                      <XCircle className="size-4" />
+                      Reject
+                    </Button>
+                  </div>
+                </TabsContent>
+                <TabsContent value="raw" className="pt-2">
+                  <ScrollArea className="h-[220px] rounded-lg border bg-background/60">
+                    <pre className="whitespace-pre-wrap break-all p-4 font-mono text-xs leading-6 text-muted-foreground">
+                      {selectedAction.calldata}
+                    </pre>
+                  </ScrollArea>
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Activity</CardTitle>
+              <CardTitle>Reviews</CardTitle>
+              <CardDescription>
+                Decisions recorded for the selected version.
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <ReviewTimeline proposal={selectedProposal} />
+              <ReviewsList
+                reviews={selectedProposal.reviews}
+                selectedVersionId={selectedVersion.id}
+              />
             </CardContent>
           </Card>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function OrgAndSearch({
+  selectedOrgId,
+  setSelectedOrgId,
+  query,
+  setQuery,
+}: {
+  selectedOrgId: string;
+  setSelectedOrgId: (orgId: string) => void;
+  query: string;
+  setQuery: (query: string) => void;
+}) {
+  return (
+    <div className="grid gap-4">
+      <div className="grid gap-2">
+        <Label>Organization</Label>
+        <Select
+          value={selectedOrgId}
+          onValueChange={(value) => {
+            if (typeof value === "string") setSelectedOrgId(value);
+          }}
+        >
+          <SelectTrigger className="w-full">
+            <span>{getOrgName(selectedOrgId)}</span>
+          </SelectTrigger>
+          <SelectContent>
+            {mockOrgs.map((org) => (
+              <SelectItem key={org.id} value={org.id}>
+                {org.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="proposal-search">Search</Label>
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            id="proposal-search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            className="pl-8"
+            placeholder="Proposal title or id"
+          />
         </div>
       </div>
     </div>
