@@ -267,6 +267,7 @@ function NewDraftForm() {
   const [previousVersion, setPreviousVersion] = useState(
     searchParams.get("previousVersion") ?? "0"
   );
+  const [signedDeadline, setSignedDeadline] = useState<string | null>(null);
   const [actions, setActions] = useState<ActionItem[]>([
     { target: "", value: "0", calldata: "0x" },
   ]);
@@ -365,7 +366,9 @@ function NewDraftForm() {
     const extraDataHash = keccak256(
       toBytes((extraData || "0x") as `0x${string}`)
     );
-    const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
+    const deadlineSeconds = Math.floor(Date.now() / 1000) + 3600;
+    const deadline = BigInt(deadlineSeconds);
+    setSignedDeadline(String(deadlineSeconds));
 
     signTypedData({
       domain: {
@@ -547,7 +550,7 @@ function NewDraftForm() {
                   extraData: extraData || "0x",
                   previousVersion: previousVersion || "0",
                   proposer: address,
-                  deadline: String(Math.floor(Date.now() / 1000) + 3600),
+                  deadline: signedDeadline,
                   signature,
                 },
                 null,

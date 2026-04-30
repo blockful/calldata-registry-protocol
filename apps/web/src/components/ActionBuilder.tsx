@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { encodeFunctionData } from "viem";
 import type { Abi, AbiFunction, AbiParameter } from "viem";
 
@@ -583,8 +583,7 @@ export function ActionBuilder({
     }))
   );
 
-  // Keep cardStates in sync with actions length
-  useEffect(() => {
+  const normalizedCardStates = useMemo(() => {
     if (cardStates.length < actions.length) {
       const newStates = [...cardStates];
       while (newStates.length < actions.length) {
@@ -600,10 +599,14 @@ export function ActionBuilder({
           },
         });
       }
-      setCardStates(newStates);
-    } else if (cardStates.length > actions.length) {
-      setCardStates(cardStates.slice(0, actions.length));
+      return newStates;
     }
+
+    if (cardStates.length > actions.length) {
+      return cardStates.slice(0, actions.length);
+    }
+
+    return cardStates;
   }, [actions.length, cardStates]);
 
   const updateAction = (index: number, action: ActionItem) => {
@@ -613,7 +616,7 @@ export function ActionBuilder({
   };
 
   const updateCardState = (index: number, state: ActionCardState) => {
-    const next = [...cardStates];
+    const next = [...normalizedCardStates];
     next[index] = state;
     setCardStates(next);
   };
@@ -621,13 +624,13 @@ export function ActionBuilder({
   const removeAction = (index: number) => {
     if (actions.length <= 1) return;
     onChange(actions.filter((_, i) => i !== index));
-    setCardStates(cardStates.filter((_, i) => i !== index));
+    setCardStates(normalizedCardStates.filter((_, i) => i !== index));
   };
 
   const addAction = () => {
     onChange([...actions, { target: "", value: "0", calldata: "0x" }]);
     setCardStates([
-      ...cardStates,
+      ...normalizedCardStates,
       {
         mode: "raw",
         collapsed: false,
@@ -650,7 +653,7 @@ export function ActionBuilder({
           index={i}
           action={action}
           cardState={
-            cardStates[i] ?? {
+            normalizedCardStates[i] ?? {
               mode: "raw" as const,
               collapsed: false,
               build: {
