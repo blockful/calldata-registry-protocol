@@ -4,7 +4,7 @@ import Link from "next/link";
 import { use, useState } from "react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { encodeAbiParameters } from "viem";
-import { useDraft, useDraftForks, useDraftReviews } from "@/hooks/usePonderAPI";
+import { useDraftDetail } from "@/hooks/usePonderAPI";
 import { easAbi } from "@/abi/EAS";
 import { EAS_ADDRESS, REVIEW_SCHEMA_UID } from "@/config/wagmi";
 
@@ -39,6 +39,10 @@ function formatEth(weiStr: string): string {
   if (remainder === BigInt(0)) return whole.toString() + " ETH";
   const decStr = remainder.toString().padStart(18, "0").replace(/0+$/, "");
   return whole.toString() + "." + decStr + " ETH";
+}
+
+function draftPath(executor: string, nonce: string) {
+  return `/${executor.toLowerCase()}/draft/${nonce}`;
 }
 
 function CalldataBlock({ data }: { data: string }) {
@@ -203,12 +207,10 @@ function ReviewForm({ draftId }: { draftId: string }) {
 export default function DraftDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ executor: string; nonce: string }>;
 }) {
-  const { id } = use(params);
-  const { data: draft, isLoading, error } = useDraft(id);
-  const { data: forks } = useDraftForks(id);
-  const { data: reviews } = useDraftReviews(id);
+  const { executor, nonce } = use(params);
+  const { data: detail, isLoading, error } = useDraftDetail(executor, nonce);
 
   if (isLoading) {
     return (
@@ -220,7 +222,7 @@ export default function DraftDetailPage({
     );
   }
 
-  if (error || !draft) {
+  if (error || !detail) {
     return (
       <div className="max-w-[1080px] mx-auto px-6 py-12">
         <div className="border border-white/10 p-6 text-sm text-white/40">
@@ -231,13 +233,13 @@ export default function DraftDetailPage({
   }
 
   const selector =
-    draft.calldatas && draft.calldatas.length > 0
-      ? draft.calldatas.map((cd: string) =>
+    detail.calldatas && detail.calldatas.length > 0
+      ? detail.calldatas.map((cd: string) =>
           cd && cd.length >= 10 ? cd.slice(0, 10) : null
         )
       : [];
 
-  const activeReviews = reviews?.filter((r) => !r.revoked) ?? [];
+  const activeReviews = detail.reviews?.filter((r) => !r.revoked) ?? [];
   const approvalCount = activeReviews.filter((r) => r.approved).length;
   const rejectionCount = activeReviews.filter((r) => !r.approved).length;
 
@@ -247,33 +249,38 @@ export default function DraftDetailPage({
       <div className="flex items-start justify-between mb-10">
         <div>
           <h1 className="text-2xl font-light text-white mb-3">
-            Draft <span className="font-mono">#{id}</span>
+            Draft <span className="font-mono">#{nonce}</span>
           </h1>
           <div className="space-y-1 text-sm">
             <div>
               <span className="text-white/40">Proposer </span>
-              <span className="font-mono text-white/60">{draft.proposer}</span>
+              <span className="font-mono text-white/60">{detail.proposer}</span>
             </div>
             <div>
               <span className="text-white/40">Executor </span>
-              <span className="font-mono text-white/60">{draft.executor}</span>
+              <Link
+                href={`/${executor.toLowerCase()}`}
+                className="font-mono text-white/60 hover:text-white underline decoration-white/20 underline-offset-2 hover:decoration-white/60"
+              >
+                {detail.executor}
+              </Link>
             </div>
             <div>
               <span className="text-white/40">Time </span>
               <span className="font-mono text-white/60">
-                {formatTimestamp(draft.timestamp)}
+                {formatTimestamp(detail.timestamp)}
               </span>
               <span className="text-white/40 ml-2">
-                ({timeAgo(draft.timestamp)})
+                ({timeAgo(detail.timestamp)})
               </span>
             </div>
           </div>
         </div>
         <Link
-          href={`/drafts/new?previousVersion=${id}`}
+          href={`/new?based-on=${executor}/${nonce}`}
           className="text-sm text-white border border-white/10 px-4 py-2 hover:border-white/20"
         >
-          Fork this Draft
+          Base a new draft on this
         </Link>
       </div>
 
@@ -282,7 +289,7 @@ export default function DraftDetailPage({
         <h2 className="text-base font-medium text-white mb-3">Description</h2>
         <div className="border border-white/10 p-6">
           <p className="whitespace-pre-wrap text-sm text-white/60">
-            {draft.description || "No description provided."}
+            {detail.description || "No description provided."}
           </p>
         </div>
       </section>
@@ -290,13 +297,13 @@ export default function DraftDetailPage({
       {/* Actions */}
       <section className="mb-10">
         <h2 className="text-base font-medium text-white mb-3">
-          Actions ({draft.targets?.length ?? 0})
+          Actions ({detail.targets?.length ?? 0})
         </h2>
-        {draft.targets && draft.targets.length > 0 ? (
+        {detail.targets && detail.targets.length > 0 ? (
           <div className="space-y-4">
-            {draft.targets.map((target: string, i: number) => {
-              const value = draft.values?.[i] ?? "0";
-              const calldata = draft.calldatas?.[i] ?? "0x";
+            {detail.targets.map((target: string, i: number) => {
+              const value = detail.values?.[i] ?? "0";
+              const calldata = detail.calldatas?.[i] ?? "0x";
               const sel = selector[i];
               const hasValue = value !== "0" && value !== "";
 
@@ -343,12 +350,12 @@ export default function DraftDetailPage({
       </section>
 
       {/* Extra Data */}
-      {draft.extraData && draft.extraData !== "0x" && (
+      {detail.extraData && detail.extraData !== "0x" && (
         <section className="mb-10">
           <h2 className="text-base font-medium text-white mb-3">Extra Data</h2>
           <div className="border border-white/10 p-6">
             <pre className="font-mono text-xs text-white/60 break-all whitespace-pre-wrap">
-              {draft.extraData}
+              {detail.extraData}
             </pre>
           </div>
         </section>
@@ -426,23 +433,23 @@ export default function DraftDetailPage({
         <div className="text-xs text-white/30 uppercase tracking-wider mb-3">
           Submit Review
         </div>
-        <ReviewForm draftId={id} />
+        <ReviewForm draftId={detail.id} />
       </section>
 
-      {/* Version Graph */}
+      {/* Lineage */}
       <section className="mb-10">
         <h2 className="text-base font-medium text-white mb-3">
-          Version Graph
+          Lineage
         </h2>
         <div className="border border-white/10 p-6 space-y-3">
-          {draft.previousVersion && draft.previousVersion !== "0" ? (
+          {detail.basedOnParent ? (
             <div className="text-sm">
-              <span className="text-white/40">Parent: </span>
+              <span className="text-white/40">Based on: </span>
               <Link
-                href={`/drafts/${draft.previousVersion}`}
+                href={draftPath(detail.basedOnParent.executor, detail.basedOnParent.executorDraftNonce)}
                 className="font-mono text-white underline decoration-white/20 underline-offset-2 hover:decoration-white/60"
               >
-                Draft #{draft.previousVersion}
+                {truncateAddr(detail.basedOnParent.executor)}/#{detail.basedOnParent.executorDraftNonce}
               </Link>
             </div>
           ) : (
@@ -451,22 +458,22 @@ export default function DraftDetailPage({
             </div>
           )}
 
-          {forks && forks.length > 0 && (
+          {detail.basedOnDrafts && detail.basedOnDrafts.length > 0 && (
             <div>
               <span className="text-sm text-white/40">
-                Forks ({forks.length})
+                Drafts based on this ({detail.basedOnDrafts.length})
               </span>
               <ul className="mt-2 space-y-1">
-                {forks.map((fork) => (
-                  <li key={fork.id} className="text-sm">
+                {detail.basedOnDrafts.map((child) => (
+                  <li key={child.id} className="text-sm">
                     <Link
-                      href={`/drafts/${fork.id}`}
+                      href={draftPath(child.executor, child.executorDraftNonce)}
                       className="font-mono text-white underline decoration-white/20 underline-offset-2 hover:decoration-white/60"
                     >
-                      Draft #{fork.id}
+                      {truncateAddr(child.executor)}/#{child.executorDraftNonce}
                     </Link>
                     <span className="text-white/40 ml-2">
-                      by {truncateAddr(fork.proposer)}
+                      by {truncateAddr(child.proposer)}
                     </span>
                   </li>
                 ))}
@@ -474,18 +481,17 @@ export default function DraftDetailPage({
             </div>
           )}
 
-          {forks &&
-            forks.length === 0 &&
-            !(draft.previousVersion && draft.previousVersion !== "0") && (
-              <div className="text-sm text-white/40">No forks yet.</div>
+          {detail.basedOnDrafts &&
+            detail.basedOnDrafts.length === 0 &&
+            !detail.basedOnParent && (
+              <div className="text-sm text-white/40">No derived drafts yet.</div>
             )}
 
-          {forks &&
-            forks.length === 0 &&
-            draft.previousVersion &&
-            draft.previousVersion !== "0" && (
+          {detail.basedOnDrafts &&
+            detail.basedOnDrafts.length === 0 &&
+            detail.basedOnParent && (
               <div className="text-sm text-white/40">
-                No forks of this draft yet.
+                No drafts based on this one yet.
               </div>
             )}
         </div>

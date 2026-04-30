@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useMemo } from "react";
+import { Suspense, useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   useAccount,
@@ -24,6 +24,7 @@ import {
 import { REGISTRY_ADDRESS } from "@/config/wagmi";
 import { ActionBuilder } from "@/components/ActionBuilder";
 import type { ActionItem } from "@/components/ActionBuilder";
+import { useDraftDetail } from "@/hooks/usePonderAPI";
 
 // ── Step indicator ─────────────────────────────────────────────────────
 
@@ -74,8 +75,7 @@ function StepDetails({
   setDescription,
   extraData,
   setExtraData,
-  previousVersion,
-  setPreviousVersion,
+  basedOnLabel,
 }: {
   executor: string;
   setExecutor: (v: string) => void;
@@ -83,8 +83,7 @@ function StepDetails({
   setDescription: (v: string) => void;
   extraData: string;
   setExtraData: (v: string) => void;
-  previousVersion: string;
-  setPreviousVersion: (v: string) => void;
+  basedOnLabel: string | null;
 }) {
   return (
     <div className="space-y-6">
@@ -128,19 +127,16 @@ function StepDetails({
         />
       </div>
 
-      <div>
-        <div className="text-xs text-white/50 uppercase tracking-wider mb-1.5">
-          Previous Version{" "}
-          <span className="text-white/20 normal-case">optional, 0 for new</span>
+      {basedOnLabel && (
+        <div>
+          <div className="text-xs text-white/50 uppercase tracking-wider mb-1.5">
+            Based On
+          </div>
+          <div className="font-mono text-sm text-white/60 bg-white/[0.03] border border-white/10 px-3 py-2">
+            {basedOnLabel}
+          </div>
         </div>
-        <input
-          type="text"
-          value={previousVersion}
-          onChange={(e) => setPreviousVersion(e.target.value)}
-          placeholder="0"
-          className="w-full bg-white/5 border border-white/10 text-white px-3 py-2 text-sm font-mono focus:border-white/30 focus:outline-none placeholder:text-white/20"
-        />
-      </div>
+      )}
     </div>
   );
 }
@@ -178,13 +174,13 @@ function StepReview({
   executor,
   description,
   extraData,
-  previousVersion,
+  basedOnLabel,
   actions,
 }: {
   executor: string;
   description: string;
   extraData: string;
-  previousVersion: string;
+  basedOnLabel: string | null;
   actions: ActionItem[];
 }) {
   return (
@@ -210,10 +206,10 @@ function StepReview({
             <span className="font-mono text-white/60">{extraData}</span>
           </div>
         )}
-        {previousVersion && previousVersion !== "0" && (
+        {basedOnLabel && (
           <div className="text-sm">
-            <span className="text-white/40">Previous Version </span>
-            <span className="font-mono text-white/60">#{previousVersion}</span>
+            <span className="text-white/40">Based On </span>
+            <span className="font-mono text-white/60">{basedOnLabel}</span>
           </div>
         )}
       </div>
@@ -259,17 +255,48 @@ function NewDraftForm() {
   const searchParams = useSearchParams();
   const { address, isConnected, chainId } = useAccount();
 
+  // Parse based-on query param: format "executor/nonce"
+  const basedOnParam = searchParams.get("based-on");
+  const [basedOnExecutor, basedOnNonce] = basedOnParam
+    ? basedOnParam.split("/")
+    : [undefined, undefined];
+
+  // Fetch parent draft if based-on is provided
+  const { data: parentDraft } = useDraftDetail(
+    basedOnExecutor ?? "",
+    basedOnNonce ?? ""
+  );
+
   // Form state
   const [step, setStep] = useState(0);
   const [executor, setExecutor] = useState("");
   const [description, setDescription] = useState("");
   const [extraData, setExtraData] = useState("0x");
-  const [previousVersion, setPreviousVersion] = useState(
-    searchParams.get("previousVersion") ?? "0"
-  );
+  const [basedOnDraftId, setBasedOnDraftId] = useState("0");
   const [actions, setActions] = useState<ActionItem[]>([
     { target: "", value: "0", calldata: "0x" },
   ]);
+
+  // Pre-populate form from parent draft
+  useEffect(() => {
+    if (parentDraft) {
+      setBasedOnDraftId(parentDraft.id);
+      setExecutor(parentDraft.executor);
+      setDescription(parentDraft.description);
+      setExtraData(parentDraft.extraData || "0x");
+      if (parentDraft.targets && parentDraft.targets.length > 0) {
+        setActions(
+          parentDraft.targets.map((target, i) => ({
+            target,
+            value: parentDraft.values?.[i] ?? "0",
+            calldata: parentDraft.calldatas?.[i] ?? "0x",
+          }))
+        );
+      }
+    }
+  }, [parentDraft]);
+
+  const basedOnLabel = basedOnParam ?? null;
 
   // Direct publish
   const {
@@ -345,7 +372,7 @@ function NewDraftForm() {
         calldatas,
         description,
         (extraData || "0x") as `0x${string}`,
-        BigInt(previousVersion || "0"),
+        BigInt(basedOnDraftId || "0"),
       ],
     });
   }
@@ -380,7 +407,7 @@ function NewDraftForm() {
         actionsHash,
         descriptionHash,
         extraDataHash,
-        previousVersion: BigInt(previousVersion || "0"),
+        previousVersion: BigInt(basedOnDraftId || "0"),
         proposer: address,
         nonce: nonce ?? BigInt(0),
         deadline,
@@ -415,8 +442,7 @@ function NewDraftForm() {
           setDescription={setDescription}
           extraData={extraData}
           setExtraData={setExtraData}
-          previousVersion={previousVersion}
-          setPreviousVersion={setPreviousVersion}
+          basedOnLabel={basedOnLabel}
         />
       )}
 
@@ -427,7 +453,7 @@ function NewDraftForm() {
           executor={executor}
           description={description}
           extraData={extraData}
-          previousVersion={previousVersion}
+          basedOnLabel={basedOnLabel}
           actions={actions}
         />
       )}
@@ -545,7 +571,7 @@ function NewDraftForm() {
                   calldatas: actions.map((c) => c.calldata || "0x"),
                   description,
                   extraData: extraData || "0x",
-                  previousVersion: previousVersion || "0",
+                  previousVersion: basedOnDraftId || "0",
                   proposer: address,
                   deadline: String(Math.floor(Date.now() / 1000) + 3600),
                   signature,

@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 import { ConnectButton } from "./ConnectButton";
 
 const NAV_ITEMS = [
-  { href: "/drafts", label: "Drafts" },
-  { href: "/drafts/new", label: "New Draft" },
+  { href: "/", label: "Drafts" },
+  { href: "/new", label: "New Draft" },
 ];
 
 export function Header() {
@@ -25,8 +25,9 @@ export function Header() {
           <nav className="hidden items-center gap-1 sm:flex">
             {NAV_ITEMS.map(({ href, label }) => {
               const isActive =
-                pathname === href ||
-                (href !== "/drafts/new" && pathname.startsWith(href + "/"));
+                href === "/"
+                  ? pathname === "/"
+                  : pathname === href || pathname.startsWith(href + "/");
               return (
                 <Link
                   key={href}

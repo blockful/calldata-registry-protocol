@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useDrafts } from "@/hooks/usePonderAPI";
-import { useState } from "react";
+import { use, useState } from "react";
+import { useExecutorDrafts } from "@/hooks/usePonderAPI";
 
 function truncateAddr(addr: string) {
   if (!addr) return "";
@@ -26,14 +26,22 @@ function timeAgo(timestamp: string): string {
   return days + "d ago";
 }
 
-export default function DraftsPage() {
+export default function ExecutorPage({
+  params,
+}: {
+  params: Promise<{ executor: string }>;
+}) {
+  const { executor } = use(params);
   const [page, setPage] = useState(0);
   const limit = 20;
-  const { data: drafts, isLoading, error } = useDrafts(limit, page * limit);
+  const { data: drafts, isLoading, error } = useExecutorDrafts(executor, limit, page * limit);
 
   return (
     <div className="max-w-[1080px] mx-auto px-6 py-12">
-      <h1 className="text-xl font-light text-white mb-8">Drafts</h1>
+      <div className="mb-8">
+        <h1 className="text-xl font-light text-white mb-1">Executor</h1>
+        <div className="font-mono text-sm text-white/50">{executor}</div>
+      </div>
 
       {isLoading && (
         <div className="border border-white/10 p-6 text-sm text-white/40">
@@ -49,7 +57,7 @@ export default function DraftsPage() {
 
       {drafts && drafts.length === 0 && page === 0 && (
         <div className="border border-white/10 p-6 text-sm text-white/40">
-          No drafts published yet.
+          No drafts found for this executor.
         </div>
       )}
 
@@ -59,61 +67,25 @@ export default function DraftsPage() {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-white/10">
-                  <th className="px-4 py-3 text-xs font-normal text-white/40">
-                    #
-                  </th>
-                  <th className="px-4 py-3 text-xs font-normal text-white/40">
-                    Executor
-                  </th>
-                  <th className="px-4 py-3 text-xs font-normal text-white/40">
-                    Proposer
-                  </th>
-                  <th className="px-4 py-3 text-xs font-normal text-white/40 hidden sm:table-cell">
-                    Description
-                  </th>
-                  <th className="px-4 py-3 text-xs font-normal text-white/40">
-                    Version
-                  </th>
-                  <th className="px-4 py-3 text-xs font-normal text-white/40 text-right hidden sm:table-cell">
-                    Time
-                  </th>
+                  <th className="px-4 py-3 text-xs font-normal text-white/40">#</th>
+                  <th className="px-4 py-3 text-xs font-normal text-white/40">Proposer</th>
+                  <th className="px-4 py-3 text-xs font-normal text-white/40 hidden sm:table-cell">Description</th>
+                  <th className="px-4 py-3 text-xs font-normal text-white/40 text-right hidden sm:table-cell">Time</th>
                 </tr>
               </thead>
               <tbody>
                 {drafts.map((draft) => (
-                  <tr
-                    key={draft.id}
-                    className="border-b border-white/10 last:border-b-0"
-                  >
+                  <tr key={draft.id} className="border-b border-white/10 last:border-b-0">
                     <td className="px-4 py-3">
                       <Link
-                        href={`/drafts/${draft.id}`}
+                        href={`/${executor.toLowerCase()}/draft/${draft.executorDraftNonce}`}
                         className="font-mono text-white underline decoration-white/20 underline-offset-2 hover:decoration-white/60"
                       >
-                        {draft.id}
+                        {draft.executorDraftNonce}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 font-mono text-white/60">
-                      {truncateAddr(draft.executor)}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-white/60">
-                      {truncateAddr(draft.proposer)}
-                    </td>
-                    <td className="px-4 py-3 text-white/40 hidden sm:table-cell">
-                      {truncate(draft.description, 60)}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-white/40">
-                      {draft.previousVersion !== "0" ? (
-                        <Link
-                          href={`/drafts/${draft.previousVersion}`}
-                          className="text-white underline decoration-white/20 underline-offset-2 hover:decoration-white/60"
-                        >
-                          fork of #{draft.previousVersion}
-                        </Link>
-                      ) : (
-                        <span>v1</span>
-                      )}
-                    </td>
+                    <td className="px-4 py-3 font-mono text-white/60">{truncateAddr(draft.proposer)}</td>
+                    <td className="px-4 py-3 text-white/40 hidden sm:table-cell">{truncate(draft.description, 60)}</td>
                     <td className="px-4 py-3 font-mono text-xs text-white/40 text-right hidden sm:table-cell">
                       {timeAgo(draft.timestamp)}
                     </td>
@@ -131,9 +103,7 @@ export default function DraftsPage() {
             >
               Previous
             </button>
-            <span className="text-xs font-mono text-white/40">
-              Page {page + 1}
-            </span>
+            <span className="text-xs font-mono text-white/40">Page {page + 1}</span>
             <button
               onClick={() => setPage((p) => p + 1)}
               disabled={drafts.length < limit}

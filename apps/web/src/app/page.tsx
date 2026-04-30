@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { useDrafts } from "@/hooks/usePonderAPI";
-
-function truncate(str: string, len: number) {
-  if (!str) return "";
-  return str.length > len ? str.slice(0, len) + "..." : str;
-}
+import { useState } from "react";
 
 function truncateAddr(addr: string) {
   if (!addr) return "";
   return addr.slice(0, 6) + "..." + addr.slice(-4);
+}
+
+function truncate(str: string, len: number) {
+  if (!str) return "";
+  return str.length > len ? str.slice(0, len) + "..." : str;
 }
 
 function timeAgo(timestamp: string): string {
@@ -25,95 +26,83 @@ function timeAgo(timestamp: string): string {
   return days + "d ago";
 }
 
+function draftPath(executor: string, nonce: string) {
+  return `/${executor.toLowerCase()}/draft/${nonce}`;
+}
+
 export default function HomePage() {
-  const { data: drafts, isLoading, error } = useDrafts(10);
+  const [page, setPage] = useState(0);
+  const limit = 20;
+  const { data: drafts, isLoading, error } = useDrafts(limit, page * limit);
 
   return (
-    <div className="max-w-[1080px] mx-auto px-6 py-16">
-      <h1 className="text-2xl font-light text-white mb-2">
-        Calldata Registry
-      </h1>
-      <p className="text-sm text-white/50 mb-16">
-        Publish calldata on-chain for public review. Decode, simulate, and verify
-        before signing.
-      </p>
+    <div className="max-w-[1080px] mx-auto px-6 py-12">
+      <h1 className="text-xl font-light text-white mb-8">Drafts</h1>
 
-      <section>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-base font-medium text-white">Recent Drafts</h2>
-          <Link
-            href="/drafts"
-            className="text-sm text-white underline decoration-white/20 underline-offset-2 hover:decoration-white/60"
-          >
-            View all drafts
-          </Link>
+      {isLoading && (
+        <div className="border border-white/10 p-6 text-sm text-white/40">
+          Loading drafts...
         </div>
+      )}
 
-        {isLoading && (
-          <div className="border border-white/10 p-6 text-sm text-white/40">
-            Loading drafts...
-          </div>
-        )}
+      {error && (
+        <div className="border border-white/10 p-6 text-sm text-white/40">
+          Unable to load drafts. Make sure the indexer is running.
+        </div>
+      )}
 
-        {error && (
-          <div className="border border-white/10 p-6 text-sm text-white/40">
-            Unable to load drafts. Make sure the indexer is running.
-          </div>
-        )}
+      {drafts && drafts.length === 0 && page === 0 && (
+        <div className="border border-white/10 p-6 text-sm text-white/40">
+          No drafts published yet.{" "}
+          <Link
+            href="/new"
+            className="text-white underline decoration-white/20 underline-offset-2 hover:decoration-white/60"
+          >
+            Create one
+          </Link>
+          .
+        </div>
+      )}
 
-        {drafts && drafts.length === 0 && (
-          <div className="border border-white/10 p-6 text-sm text-white/40">
-            No drafts published yet.{" "}
-            <Link
-              href="/drafts/new"
-              className="text-white underline decoration-white/20 underline-offset-2 hover:decoration-white/60"
-            >
-              Create one
-            </Link>
-            .
-          </div>
-        )}
-
-        {drafts && drafts.length > 0 && (
+      {drafts && drafts.length > 0 && (
+        <>
           <div className="border border-white/10">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-white/10">
-                  <th className="px-4 py-3 text-xs font-normal text-white/40">
-                    ID
-                  </th>
-                  <th className="px-4 py-3 text-xs font-normal text-white/40">
-                    Proposer
-                  </th>
-                  <th className="px-4 py-3 text-xs font-normal text-white/40 hidden sm:table-cell">
-                    Description
-                  </th>
-                  <th className="px-4 py-3 text-xs font-normal text-white/40 text-right">
-                    Time
-                  </th>
+                  <th className="px-4 py-3 text-xs font-normal text-white/40">#</th>
+                  <th className="px-4 py-3 text-xs font-normal text-white/40">Executor</th>
+                  <th className="px-4 py-3 text-xs font-normal text-white/40">Proposer</th>
+                  <th className="px-4 py-3 text-xs font-normal text-white/40 hidden sm:table-cell">Description</th>
+                  <th className="px-4 py-3 text-xs font-normal text-white/40">Based On</th>
+                  <th className="px-4 py-3 text-xs font-normal text-white/40 text-right hidden sm:table-cell">Time</th>
                 </tr>
               </thead>
               <tbody>
                 {drafts.map((draft) => (
-                  <tr
-                    key={draft.id}
-                    className="border-b border-white/10 last:border-b-0"
-                  >
+                  <tr key={draft.id} className="border-b border-white/10 last:border-b-0">
                     <td className="px-4 py-3">
                       <Link
-                        href={`/drafts/${draft.id}`}
+                        href={draftPath(draft.executor, draft.executorDraftNonce)}
                         className="font-mono text-white underline decoration-white/20 underline-offset-2 hover:decoration-white/60"
                       >
-                        #{draft.id}
+                        {draft.executorDraftNonce}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 font-mono text-white/60">
-                      {truncateAddr(draft.proposer)}
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/${draft.executor.toLowerCase()}`}
+                        className="font-mono text-white/60 hover:text-white"
+                      >
+                        {truncateAddr(draft.executor)}
+                      </Link>
                     </td>
-                    <td className="px-4 py-3 text-white/40 hidden sm:table-cell">
-                      {truncate(draft.description, 60)}
+                    <td className="px-4 py-3 font-mono text-white/60">{truncateAddr(draft.proposer)}</td>
+                    <td className="px-4 py-3 text-white/40 hidden sm:table-cell">{truncate(draft.description, 60)}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-white/40">
+                      {draft.basedOn !== "0" ? <span>yes</span> : <span>--</span>}
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-white/40 text-right">
+                    <td className="px-4 py-3 font-mono text-xs text-white/40 text-right hidden sm:table-cell">
                       {timeAgo(draft.timestamp)}
                     </td>
                   </tr>
@@ -121,8 +110,26 @@ export default function HomePage() {
               </tbody>
             </table>
           </div>
-        )}
-      </section>
+
+          <div className="mt-6 flex items-center justify-between">
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="text-sm text-white/40 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <span className="text-xs font-mono text-white/40">Page {page + 1}</span>
+            <button
+              onClick={() => setPage((p) => p + 1)}
+              disabled={drafts.length < limit}
+              className="text-sm text-white/40 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
