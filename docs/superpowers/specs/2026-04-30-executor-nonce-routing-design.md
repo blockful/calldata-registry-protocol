@@ -31,18 +31,22 @@ In the `DraftPublished` handler, before inserting: count existing drafts for tha
 
 ### API
 
-New endpoint:
+Three endpoints total:
 
 ```
-GET /executors/:address/drafts/:nonce → single draft (primary frontend lookup)
+GET /drafts                              → global feed (paginated, includes executorDraftNonce)
+GET /executors/:address/drafts           → drafts for an executor (paginated)
+GET /executors/:address/drafts/:nonce    → single draft + reviews + forks inline
 ```
 
-Existing endpoints stay for internal use:
-- `GET /drafts` — global list (returns items with `executorDraftNonce` for link building)
-- `GET /drafts/:id/reviews` — reviews by internal draftId
-- `GET /drafts/:id/forks` — forks by internal draftId
+The detail endpoint returns everything the draft page needs in one call: draft data, reviews array, and forks array. Each fork includes its own executor and executorDraftNonce for link building.
 
-The frontend resolves `(executor, nonce) → draft` once, then uses the internal `draftId` from the response for reviews/forks queries.
+All other endpoints are removed:
+- ~~GET /drafts/:id~~ → replaced by executor/nonce lookup
+- ~~GET /proposers/:address/drafts~~ → no frontend route
+- ~~GET /drafts/:id/forks~~ → inlined in detail response
+- ~~GET /drafts/:id/reviews~~ → inlined in detail response
+- ~~GET /reviews/:id~~ → no single-review view
 
 ## Frontend
 
@@ -65,7 +69,7 @@ All links switch from `/drafts/${id}` to `/${executor}/draft/${nonce}`.
 
 Fork button on draft detail: `<Link href={/new?fork=${executor}/${nonce}}>`.
 
-Version graph links: parent and forks each link to `/${parentExecutor}/draft/${parentNonce}`. This means fork data returned from the API must also include executor and nonce of the referenced draft.
+Version graph links: parent and forks each link to `/${parentExecutor}/draft/${parentNonce}`. The detail endpoint already returns forks with their executor/nonce, and includes parent executor/nonce when previousVersion != 0.
 
 ### Navigation
 
