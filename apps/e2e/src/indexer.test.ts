@@ -40,16 +40,13 @@ describe("Ponder Indexer Integration", () => {
   let wallet1: ReturnType<typeof createWalletClient>;
 
   beforeAll(async () => {
-    // 1. Start Anvil
     const anvil = await startAnvil();
     anvilProcess = anvil.process;
     rpcUrl = anvil.rpcUrl;
 
-    // 2. Deploy contracts (registry + EAS + resolver)
     deploy = await deployContracts(rpcUrl);
     contractAddress = deploy.registryAddress;
 
-    // 3. Create viem clients
     const transport = http(rpcUrl);
     publicClient = createPublicClient({ chain: foundry, transport });
     wallet0 = createWalletClient({
@@ -63,16 +60,13 @@ describe("Ponder Indexer Integration", () => {
       transport,
     });
 
-    // 4. Start Ponder with EAS address and schema UID
-    const ponder = await startPonder(contractAddress, rpcUrl, undefined, deploy.easAddress, deploy.schemaUID);
+    const ponder = await startPonder(contractAddress, rpcUrl, undefined, deploy.easAddress, deploy.schemaUID, deploy.resolverAddress);
     ponderProcess = ponder.process;
     apiUrl = ponder.apiUrl;
 
-    // 5. Wait for Ponder API to be ready
     await waitForReady(`${apiUrl}/ready`, 60_000);
 
-    // 6. Perform contract operations
-    // Publish draft #1
+    // Publish draft #1 (executor = account0)
     let hash = await wallet0.writeContract({
       address: contractAddress,
       abi: CalldataRegistryAbi,
@@ -89,7 +83,7 @@ describe("Ponder Indexer Integration", () => {
     });
     await publicClient.waitForTransactionReceipt({ hash });
 
-    // Publish draft #2 (fork of #1)
+    // Publish draft #2 (basedOn #1, same executor)
     hash = await wallet0.writeContract({
       address: contractAddress,
       abi: CalldataRegistryAbi,
@@ -99,22 +93,19 @@ describe("Ponder Indexer Integration", () => {
         ["0x0000000000000000000000000000000000000002"] as Address[],
         [100n],
         ["0xcafebabe"] as Hex[],
-        "Draft number two (fork of one)",
+        "Draft number two (based on one)",
         "0x01" as Hex,
-        1n, // previousVersion = draft #1
+        1n,
       ],
     });
     await publicClient.waitForTransactionReceipt({ hash });
 
-    // 7. Wait for Ponder to index the events
     await waitForIndexing();
   }, 120_000);
 
   afterAll(() => {
     cleanup(ponderProcess, anvilProcess);
   });
-
-  // ── Helper: wait for Ponder to index all events ────────────────────────
 
   async function waitForIndexing(maxWait = 60_000) {
     const start = Date.now();
@@ -142,41 +133,67 @@ describe("Ponder Indexer Integration", () => {
 
   // ── Tests ──────────────────────────────────────────────────────────────
 
-  it("GET /drafts returns published drafts", async () => {
+  it("GET /drafts returns published drafts with executorDraftNonce", async () => {
     const res = await fetch(`${apiUrl}/drafts`);
     expect(res.ok).toBe(true);
     const drafts = await res.json();
     expect(Array.isArray(drafts)).toBe(true);
     expect(drafts.length).toBeGreaterThanOrEqual(2);
+
+    const draft1 = drafts.find((d: any) => d.description === "Draft number one");
+    expect(draft1).toBeDefined();
+    expect(draft1.executorDraftNonce).toBe("1");
+    expect(draft1.basedOn).toBe("0");
   });
 
-  it("GET /drafts/:id returns correct draft details", async () => {
-    const res = await fetch(`${apiUrl}/drafts/1`);
+  it("GET /executors/:address/drafts returns drafts for executor", async () => {
+    const addr = account0.address.toLowerCase();
+    const res = await fetch(`${apiUrl}/executors/${addr}/drafts`);
     expect(res.ok).toBe(true);
-    const draft = await res.json();
-
-    expect(getAddress(draft.executor)).toBe(getAddress(account0.address));
-    expect(getAddress(draft.proposer)).toBe(getAddress(account0.address));
-    expect(draft.description).toBe("Draft number one");
-    // previousVersion should be 0 (stored as bigint string or number)
-    expect(BigInt(draft.previousVersion)).toBe(0n);
+    const drafts = await res.json();
+    expect(drafts.length).toBeGreaterThanOrEqual(2);
+    expect(drafts[0].executorDraftNonce).toBeDefined();
   });
 
-  it("GET /drafts/:id/forks returns forks correctly", async () => {
-    // Draft #2 is a fork of Draft #1, so /drafts/1/forks should return draft #2
-    const res = await fetch(`${apiUrl}/drafts/1/forks`);
+  it("GET /executors/:address/drafts/:nonce returns draft detail with reviews and basedOnDrafts", async () => {
+    const addr = account0.address.toLowerCase();
+    const res = await fetch(`${apiUrl}/executors/${addr}/drafts/1`);
     expect(res.ok).toBe(true);
-    const forks = await res.json();
-    expect(Array.isArray(forks)).toBe(true);
-    expect(forks.length).toBeGreaterThanOrEqual(1);
+    const detail = await res.json();
 
-    const fork = forks.find((f: any) => BigInt(f.id) === 2n);
-    expect(fork).toBeDefined();
-    expect(fork.description).toBe("Draft number two (fork of one)");
-    expect(BigInt(fork.previousVersion)).toBe(1n);
+    expect(getAddress(detail.executor)).toBe(getAddress(account0.address));
+    expect(detail.description).toBe("Draft number one");
+    expect(detail.executorDraftNonce).toBe("1");
+    expect(detail.basedOn).toBe("0");
+    expect(Array.isArray(detail.reviews)).toBe(true);
+    expect(Array.isArray(detail.basedOnDrafts)).toBe(true);
+    expect(detail.basedOnParent).toBeNull();
+
+    // Draft #2 is basedOn draft #1, so basedOnDrafts should include it
+    expect(detail.basedOnDrafts.length).toBeGreaterThanOrEqual(1);
+    const child = detail.basedOnDrafts[0];
+    expect(child.description).toBe("Draft number two (based on one)");
+    expect(child.executorDraftNonce).toBe("2");
   });
 
-  // ── Review / Attestation Tests ──────────────────────────────────────
+  it("GET /executors/:address/drafts/:nonce includes basedOnParent for derived drafts", async () => {
+    const addr = account0.address.toLowerCase();
+    const res = await fetch(`${apiUrl}/executors/${addr}/drafts/2`);
+    expect(res.ok).toBe(true);
+    const detail = await res.json();
+
+    expect(detail.basedOn).not.toBe("0");
+    expect(detail.basedOnParent).not.toBeNull();
+    expect(detail.basedOnParent.description).toBe("Draft number one");
+    expect(detail.basedOnParent.executorDraftNonce).toBe("1");
+  });
+
+  it("returns 404 for non-existent executor/nonce", async () => {
+    const res = await fetch(`${apiUrl}/executors/0x0000000000000000000000000000000000000099/drafts/1`);
+    expect(res.status).toBe(404);
+  });
+
+  // ── Review Tests ──────────────────────────────────────────────────────
 
   async function submitReview(
     wallet: ReturnType<typeof createWalletClient>,
@@ -203,7 +220,7 @@ describe("Ponder Indexer Integration", () => {
           data: {
             recipient: "0x0000000000000000000000000000000000000000" as Address,
             expirationTime: BigInt(0),
-            revocable: true,
+            revocable: false,
             refUID: "0x0000000000000000000000000000000000000000000000000000000000000000" as Hex,
             data: encodedData,
             value: BigInt(0),
@@ -215,68 +232,42 @@ describe("Ponder Indexer Integration", () => {
     return hash;
   }
 
-  async function waitForReviews(draftId: string, minCount: number, maxWait = 30_000) {
+  async function waitForReviews(executorAddr: string, nonce: string, minCount: number, maxWait = 30_000) {
     const start = Date.now();
     while (Date.now() - start < maxWait) {
       try {
-        const res = await fetch(`${apiUrl}/drafts/${draftId}/reviews`);
+        const res = await fetch(`${apiUrl}/executors/${executorAddr}/drafts/${nonce}`);
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data) && data.length >= minCount) return data;
+          if (Array.isArray(data.reviews) && data.reviews.length >= minCount) return data;
         }
       } catch {
         // not ready
       }
       await new Promise((r) => setTimeout(r, 1_000));
     }
-    throw new Error(`Ponder did not index ${minCount} reviews for draft ${draftId} in time`);
+    throw new Error(`Ponder did not index ${minCount} reviews in time`);
   }
 
-  it("GET /drafts/:id/reviews returns submitted attestation reviews", async () => {
+  it("detail endpoint includes submitted reviews", async () => {
     await submitReview(wallet0, 1n, true, "https://github.com/test/sim-report");
     await submitReview(wallet1, 1n, false, "Needs more testing");
 
-    const reviews = await waitForReviews("1", 2);
-    expect(reviews.length).toBeGreaterThanOrEqual(2);
+    const addr = account0.address.toLowerCase();
+    const detail = await waitForReviews(addr, "1", 2);
+    expect(detail.reviews.length).toBeGreaterThanOrEqual(2);
 
-    const approval = reviews.find(
+    const approval = detail.reviews.find(
       (r: any) => getAddress(r.attester) === getAddress(account0.address)
     );
     expect(approval).toBeDefined();
-    expect(approval.id).toMatch(/^1-0x[0-9a-fA-F]{64}$/);
-    expect(approval.easUid).toMatch(/^0x[0-9a-fA-F]{64}$/);
     expect(approval.approved).toBe(true);
     expect(approval.comment).toBe("https://github.com/test/sim-report");
-    expect(approval.revoked).toBe(false);
 
-    const rejection = reviews.find(
+    const rejection = detail.reviews.find(
       (r: any) => getAddress(r.attester) === getAddress(account1.address)
     );
     expect(rejection).toBeDefined();
-    expect(rejection.id).toMatch(/^1-0x[0-9a-fA-F]{64}$/);
     expect(rejection.approved).toBe(false);
-    expect(rejection.comment).toBe("Needs more testing");
-  });
-
-  it("GET /reviews/:id returns a single review by composite ID", async () => {
-    const listRes = await fetch(`${apiUrl}/drafts/1/reviews`);
-    const reviews = await listRes.json();
-    expect(reviews.length).toBeGreaterThan(0);
-
-    const id = reviews[0].id;
-    const singleRes = await fetch(`${apiUrl}/reviews/${id}`);
-    expect(singleRes.ok).toBe(true);
-    const single = await singleRes.json();
-    expect(single.id).toBe(id);
-    expect(single.draftId).toBeDefined();
-    expect(single.easUid).toMatch(/^0x[0-9a-fA-F]{64}$/);
-  });
-
-  it("GET /drafts/:id/reviews returns empty array for draft with no reviews", async () => {
-    const res = await fetch(`${apiUrl}/drafts/2/reviews`);
-    expect(res.ok).toBe(true);
-    const reviews = await res.json();
-    expect(Array.isArray(reviews)).toBe(true);
-    expect(reviews.length).toBe(0);
   });
 });

@@ -3,15 +3,16 @@ import { onchainTable, index } from "ponder";
 export const draft = onchainTable(
   "draft",
   (t) => ({
-    id: t.bigint().primaryKey(),        // draftId
+    id: t.bigint().primaryKey(),
     executor: t.hex().notNull(),
     proposer: t.hex().notNull(),
-    targets: t.text().notNull(),        // JSON stringified array
-    values: t.text().notNull(),         // JSON stringified array
-    calldatas: t.text().notNull(),      // JSON stringified array
+    targets: t.text().notNull(),
+    values: t.text().notNull(),
+    calldatas: t.text().notNull(),
     description: t.text().notNull(),
     extraData: t.text().notNull(),
-    previousVersion: t.bigint().notNull(),
+    basedOn: t.bigint().notNull(),
+    executorDraftNonce: t.bigint().notNull(),
     timestamp: t.bigint().notNull(),
     blockNumber: t.bigint().notNull(),
     txHash: t.hex().notNull(),
@@ -19,20 +20,20 @@ export const draft = onchainTable(
   (table) => ({
     executorIdx: index().on(table.executor),
     proposerIdx: index().on(table.proposer),
-    previousVersionIdx: index().on(table.previousVersion),
+    basedOnIdx: index().on(table.basedOn),
+    executorNonceIdx: index().on(table.executor, table.executorDraftNonce),
   })
 );
 
 export const review = onchainTable(
   "review",
   (t) => ({
-    id: t.text().primaryKey(),          // composite: "{draftId}-{reviewIndex}"
-    easUid: t.hex().notNull(),          // EAS attestation UID
+    id: t.text().primaryKey(),
+    easUid: t.hex().notNull(),
     draftId: t.bigint().notNull(),
     attester: t.hex().notNull(),
     approved: t.boolean().notNull(),
     comment: t.text().notNull(),
-    revoked: t.boolean().notNull(),
     timestamp: t.bigint().notNull(),
     blockNumber: t.bigint().notNull(),
     txHash: t.hex().notNull(),

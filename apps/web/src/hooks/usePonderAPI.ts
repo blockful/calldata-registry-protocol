@@ -10,9 +10,28 @@ export interface DraftItem {
   calldatas: string[];
   description: string;
   extraData: string;
-  previousVersion: string;
+  basedOn: string;
+  executorDraftNonce: string;
   timestamp: string;
   blockNumber: string;
+}
+
+export interface ReviewItem {
+  id: string;
+  easUid: string;
+  draftId: string;
+  attester: string;
+  approved: boolean;
+  comment: string;
+  timestamp: string;
+  blockNumber: string;
+  txHash: string;
+}
+
+export interface DraftDetail extends DraftItem {
+  reviews: ReviewItem[];
+  basedOnDrafts: DraftItem[];
+  basedOnParent: DraftItem | null;
 }
 
 export function useDrafts(limit = 50, offset = 0) {
@@ -28,51 +47,30 @@ export function useDrafts(limit = 50, offset = 0) {
   });
 }
 
-export function useDraft(id: string) {
-  return useQuery<DraftItem>({
-    queryKey: ["draft", id],
-    queryFn: async () => {
-      const res = await fetch(`${PONDER_API_URL}/drafts/${id}`);
-      if (!res.ok) throw new Error("Failed to fetch draft");
-      return res.json();
-    },
-    enabled: !!id,
-  });
-}
-
-export function useDraftForks(id: string) {
+export function useExecutorDrafts(executor: string, limit = 50, offset = 0) {
   return useQuery<DraftItem[]>({
-    queryKey: ["draft-forks", id],
+    queryKey: ["executor-drafts", executor, limit, offset],
     queryFn: async () => {
-      const res = await fetch(`${PONDER_API_URL}/drafts/${id}/forks`);
-      if (!res.ok) throw new Error("Failed to fetch forks");
+      const res = await fetch(
+        `${PONDER_API_URL}/executors/${executor.toLowerCase()}/drafts?limit=${limit}&offset=${offset}`
+      );
+      if (!res.ok) throw new Error("Failed to fetch executor drafts");
       return res.json();
     },
-    enabled: !!id,
+    enabled: !!executor,
   });
 }
 
-export interface ReviewItem {
-  id: string;
-  easUid: string;
-  draftId: string;
-  attester: string;
-  approved: boolean;
-  comment: string;
-  revoked: boolean;
-  timestamp: string;
-  blockNumber: string;
-  txHash: string;
-}
-
-export function useDraftReviews(id: string) {
-  return useQuery<ReviewItem[]>({
-    queryKey: ["draft-reviews", id],
+export function useDraftDetail(executor: string, nonce: string) {
+  return useQuery<DraftDetail>({
+    queryKey: ["draft-detail", executor, nonce],
     queryFn: async () => {
-      const res = await fetch(`${PONDER_API_URL}/drafts/${id}/reviews`);
-      if (!res.ok) throw new Error("Failed to fetch reviews");
+      const res = await fetch(
+        `${PONDER_API_URL}/executors/${executor.toLowerCase()}/drafts/${nonce}`
+      );
+      if (!res.ok) throw new Error("Failed to fetch draft detail");
       return res.json();
     },
-    enabled: !!id,
+    enabled: !!executor && !!nonce,
   });
 }

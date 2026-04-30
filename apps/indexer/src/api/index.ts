@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { db } from "ponder:api";
 import { draft, review } from "ponder:schema";
-import { eq, desc } from "ponder";
+import { eq, desc, and } from "ponder";
 
 const app = new Hono();
 
@@ -25,8 +25,7 @@ function parseDraft(row: any) {
   };
 }
 
-// ── Drafts ──────────────────────────────────────────────────────────────
-
+// GET /drafts — global feed
 app.get("/drafts", async (c) => {
   const limit = Number(c.req.query("limit") ?? "50");
   const offset = Number(c.req.query("offset") ?? "0");
@@ -39,75 +38,72 @@ app.get("/drafts", async (c) => {
   return c.json(drafts.map(parseDraft));
 });
 
-app.get("/drafts/:id", async (c) => {
-  let draftId: bigint;
-  try {
-    draftId = BigInt(c.req.param("id"));
-  } catch {
-    return c.json({ error: "Invalid draft ID" }, 400);
-  }
-  const result = await db.select().from(draft).where(eq(draft.id, draftId));
-  if (result.length === 0) return c.json({ error: "Not found" }, 404);
-  return c.json(parseDraft(result[0]));
-});
-
+// GET /executors/:address/drafts — executor feed
 app.get("/executors/:address/drafts", async (c) => {
-  const address = c.req.param("address") as `0x${string}`;
+  const address = c.req.param("address").toLowerCase() as `0x${string}`;
+  const limit = Number(c.req.query("limit") ?? "50");
+  const offset = Number(c.req.query("offset") ?? "0");
   const drafts = await db
     .select()
     .from(draft)
     .where(eq(draft.executor, address))
-    .orderBy(desc(draft.id));
+    .orderBy(desc(draft.executorDraftNonce))
+    .limit(limit)
+    .offset(offset);
   return c.json(drafts.map(parseDraft));
 });
 
-app.get("/proposers/:address/drafts", async (c) => {
-  const address = c.req.param("address") as `0x${string}`;
-  const drafts = await db
+// GET /executors/:address/drafts/:nonce — draft detail with reviews + basedOnDrafts
+app.get("/executors/:address/drafts/:nonce", async (c) => {
+  const address = c.req.param("address").toLowerCase() as `0x${string}`;
+  let nonce: bigint;
+  try {
+    nonce = BigInt(c.req.param("nonce"));
+  } catch {
+    return c.json({ error: "Invalid nonce" }, 400);
+  }
+
+  const result = await db
     .select()
     .from(draft)
-    .where(eq(draft.proposer, address))
-    .orderBy(desc(draft.id));
-  return c.json(drafts.map(parseDraft));
-});
-
-app.get("/drafts/:id/forks", async (c) => {
-  let draftId: bigint;
-  try {
-    draftId = BigInt(c.req.param("id"));
-  } catch {
-    return c.json({ error: "Invalid draft ID" }, 400);
-  }
-  const forks = await db
-    .select()
-    .from(draft)
-    .where(eq(draft.previousVersion, draftId))
-    .orderBy(desc(draft.id));
-  return c.json(forks.map(parseDraft));
-});
-
-// ── Reviews ─────────────────────────────────────────────────────────────
-
-app.get("/drafts/:id/reviews", async (c) => {
-  let draftId: bigint;
-  try {
-    draftId = BigInt(c.req.param("id"));
-  } catch {
-    return c.json({ error: "Invalid draft ID" }, 400);
-  }
-  const reviews = await db
-    .select()
-    .from(review)
-    .where(eq(review.draftId, draftId))
-    .orderBy(desc(review.timestamp));
-  return c.json(serialize(reviews));
-});
-
-app.get("/reviews/:id", async (c) => {
-  const id = c.req.param("id");
-  const result = await db.select().from(review).where(eq(review.id, id));
+    .where(
+      and(eq(draft.executor, address), eq(draft.executorDraftNonce, nonce))
+    );
   if (result.length === 0) return c.json({ error: "Not found" }, 404);
-  return c.json(serialize(result[0]));
+
+  const draftRow = result[0];
+  const draftId = draftRow.id;
+
+  const [reviews, basedOnDrafts] = await Promise.all([
+    db
+      .select()
+      .from(review)
+      .where(eq(review.draftId, draftId))
+      .orderBy(desc(review.timestamp)),
+    db
+      .select()
+      .from(draft)
+      .where(eq(draft.basedOn, draftId))
+      .orderBy(desc(draft.id)),
+  ]);
+
+  let basedOnParent = null;
+  if (draftRow.basedOn !== 0n) {
+    const parentResult = await db
+      .select()
+      .from(draft)
+      .where(eq(draft.id, draftRow.basedOn));
+    if (parentResult.length > 0) {
+      basedOnParent = parseDraft(parentResult[0]);
+    }
+  }
+
+  return c.json({
+    ...parseDraft(draftRow),
+    reviews: serialize(reviews),
+    basedOnDrafts: basedOnDrafts.map(parseDraft),
+    basedOnParent,
+  });
 });
 
 export default app;
