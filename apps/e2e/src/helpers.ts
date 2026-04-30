@@ -231,7 +231,8 @@ export async function startPonder(
   contractAddress: string,
   rpcUrl: string,
   port?: number,
-  easAddress?: string
+  easAddress?: string,
+  schemaUID?: string
 ): Promise<PonderInstance> {
   if (port === undefined) {
     port = await getFreePort();
@@ -248,6 +249,10 @@ export async function startPonder(
 
     if (easAddress) {
       env.EAS_ADDRESS = easAddress;
+    }
+
+    if (schemaUID) {
+      env.REVIEW_SCHEMA_UID = schemaUID;
     }
 
     const proc = spawn(

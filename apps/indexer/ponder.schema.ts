@@ -38,7 +38,8 @@ export const draft = onchainTable(
 export const review = onchainTable(
   "review",
   (t) => ({
-    id: t.hex().primaryKey(),           // EAS attestation UID
+    id: t.text().primaryKey(),          // composite: "{draftId}-{reviewIndex}"
+    easUid: t.hex().notNull(),          // EAS attestation UID
     draftId: t.bigint().notNull(),
     attester: t.hex().notNull(),
     approved: t.boolean().notNull(),
@@ -51,5 +52,6 @@ export const review = onchainTable(
   (table) => ({
     draftIdIdx: index().on(table.draftId),
     attesterIdx: index().on(table.attester),
+    easUidIdx: index().on(table.easUid),
   })
 );

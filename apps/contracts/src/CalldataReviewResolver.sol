@@ -19,8 +19,7 @@ contract CalldataReviewResolver is SchemaResolver {
 
     function onAttest(Attestation calldata attestation, uint256 /*value*/) internal view override returns (bool) {
         (uint256 draftId,,) = abi.decode(attestation.data, (uint256, bool, string));
-        (, , , , , , , , uint256 timestamp) = registry.getDraft(draftId);
-        if (timestamp == 0) revert DraftNotFound(draftId);
+        if (!registry.draftExists(draftId)) revert DraftNotFound(draftId);
         return true;
     }
 

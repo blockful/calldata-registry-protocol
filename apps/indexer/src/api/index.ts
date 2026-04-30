@@ -117,9 +117,9 @@ app.get("/drafts/:id/reviews", async (c) => {
   return c.json(serialize(reviews));
 });
 
-app.get("/reviews/:uid", async (c) => {
-  const uid = c.req.param("uid") as `0x${string}`;
-  const result = await db.select().from(review).where(eq(review.id, uid));
+app.get("/reviews/:id", async (c) => {
+  const id = c.req.param("id");
+  const result = await db.select().from(review).where(eq(review.id, id));
   if (result.length === 0) return c.json({ error: "Not found" }, 404);
   return c.json(serialize(result[0]));
 });

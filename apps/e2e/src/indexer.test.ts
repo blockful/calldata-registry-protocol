@@ -63,8 +63,8 @@ describe("Ponder Indexer Integration", () => {
       transport,
     });
 
-    // 4. Start Ponder with EAS address
-    const ponder = await startPonder(contractAddress, rpcUrl, undefined, deploy.easAddress);
+    // 4. Start Ponder with EAS address and schema UID
+    const ponder = await startPonder(contractAddress, rpcUrl, undefined, deploy.easAddress, deploy.schemaUID);
     ponderProcess = ponder.process;
     apiUrl = ponder.apiUrl;
 
@@ -279,6 +279,8 @@ describe("Ponder Indexer Integration", () => {
       (r: any) => getAddress(r.attester) === getAddress(account0.address)
     );
     expect(approval).toBeDefined();
+    expect(approval.id).toMatch(/^1-0x[0-9a-fA-F]{64}$/);
+    expect(approval.easUid).toMatch(/^0x[0-9a-fA-F]{64}$/);
     expect(approval.approved).toBe(true);
     expect(approval.comment).toBe("https://github.com/test/sim-report");
     expect(approval.revoked).toBe(false);
@@ -287,21 +289,23 @@ describe("Ponder Indexer Integration", () => {
       (r: any) => getAddress(r.attester) === getAddress(account1.address)
     );
     expect(rejection).toBeDefined();
+    expect(rejection.id).toMatch(/^1-0x[0-9a-fA-F]{64}$/);
     expect(rejection.approved).toBe(false);
     expect(rejection.comment).toBe("Needs more testing");
   });
 
-  it("GET /reviews/:uid returns a single review by UID", async () => {
-    const res = await fetch(`${apiUrl}/drafts/1/reviews`);
-    const reviews = await res.json();
+  it("GET /reviews/:id returns a single review by composite ID", async () => {
+    const listRes = await fetch(`${apiUrl}/drafts/1/reviews`);
+    const reviews = await listRes.json();
     expect(reviews.length).toBeGreaterThan(0);
 
-    const uid = reviews[0].id;
-    const singleRes = await fetch(`${apiUrl}/reviews/${uid}`);
+    const id = reviews[0].id;
+    const singleRes = await fetch(`${apiUrl}/reviews/${id}`);
     expect(singleRes.ok).toBe(true);
     const single = await singleRes.json();
-    expect(single.id).toBe(uid);
+    expect(single.id).toBe(id);
     expect(single.draftId).toBeDefined();
+    expect(single.easUid).toMatch(/^0x[0-9a-fA-F]{64}$/);
   });
 
   it("GET /drafts/:id/reviews returns empty array for draft with no reviews", async () => {

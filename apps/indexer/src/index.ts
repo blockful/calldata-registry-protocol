@@ -1,6 +1,8 @@
 import { ponder } from "ponder:registry";
 import { org, draft, review } from "ponder:schema";
-import { decodeAbiParameters } from "viem";
+import { decodeAbiParameters, type Hex } from "viem";
+
+const REVIEW_SCHEMA_UID = (process.env.REVIEW_SCHEMA_UID ?? "0x0000000000000000000000000000000000000000000000000000000000000000").toLowerCase() as Hex;
 
 ponder.on("CalldataRegistry:OrgRegistered", async ({ event, context }) => {
   await context.db.insert(org).values({
@@ -61,7 +63,13 @@ const REVIEW_SCHEMA_PARAMS = [
   { name: "comment", type: "string" },
 ] as const;
 
+function reviewId(draftId: bigint, easUid: Hex): string {
+  return `${draftId}-${easUid}`;
+}
+
 ponder.on("EAS:Attested", async ({ event, context }) => {
+  if (event.args.schemaUID.toLowerCase() !== REVIEW_SCHEMA_UID) return;
+
   const attestation = await context.client.readContract({
     abi: context.contracts.EAS.abi,
     address: context.contracts.EAS.address!,
@@ -82,7 +90,8 @@ ponder.on("EAS:Attested", async ({ event, context }) => {
   }
 
   await context.db.insert(review).values({
-    id: event.args.uid,
+    id: reviewId(draftId, event.args.uid),
+    easUid: event.args.uid,
     draftId,
     attester: event.args.attester,
     approved,
@@ -95,20 +104,28 @@ ponder.on("EAS:Attested", async ({ event, context }) => {
 });
 
 ponder.on("EAS:Revoked", async ({ event, context }) => {
-  await context.db
-    .insert(review)
-    .values({
-      id: event.args.uid,
-      draftId: 0n,
-      attester: event.args.attester,
-      approved: false,
-      comment: "",
-      revoked: true,
-      timestamp: event.block.timestamp,
-      blockNumber: event.block.number,
-      txHash: event.transaction.hash,
-    })
-    .onConflictDoUpdate({
-      revoked: true,
-    });
+  if (event.args.schemaUID.toLowerCase() !== REVIEW_SCHEMA_UID) return;
+
+  const attestation = await context.client.readContract({
+    abi: context.contracts.EAS.abi,
+    address: context.contracts.EAS.address!,
+    functionName: "getAttestation",
+    args: [event.args.uid],
+  });
+
+  let draftId: bigint;
+  try {
+    [draftId] = decodeAbiParameters(
+      [{ name: "draftId", type: "uint256" }],
+      attestation.data
+    );
+  } catch {
+    return;
+  }
+
+  const id = reviewId(draftId, event.args.uid);
+  const existing = await context.db.find(review, { id });
+  if (existing) {
+    await context.db.update(review, { id }).set({ revoked: true });
+  }
 });

@@ -172,6 +172,10 @@ contract CalldataRegistry is ICalldataRegistry, EIP712, Nonces {
         );
     }
 
+    function draftExists(uint256 draftId) external view returns (bool) {
+        return _drafts[draftId].timestamp != 0;
+    }
+
     // ── Nonces Override ────────────────────────────────────────────────
 
     function nonces(address owner) public view override(ICalldataRegistry, Nonces) returns (uint256) {

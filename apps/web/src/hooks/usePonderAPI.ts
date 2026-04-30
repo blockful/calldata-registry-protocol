@@ -98,6 +98,7 @@ export function useDraftForks(id: string) {
 
 export interface ReviewItem {
   id: string;
+  easUid: string;
   draftId: string;
   attester: string;
   approved: boolean;
