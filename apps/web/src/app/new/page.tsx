@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useMemo, useEffect } from "react";
+import { Suspense, useState, useMemo, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   useAccount,
@@ -277,9 +277,10 @@ function NewDraftForm() {
     { target: "", value: "0", calldata: "0x" },
   ]);
 
-  // Pre-populate form from parent draft
+  const initialized = useRef(false);
   useEffect(() => {
-    if (parentDraft) {
+    if (parentDraft && !initialized.current) {
+      initialized.current = true;
       setBasedOnDraftId(parentDraft.id);
       setExecutor(parentDraft.executor);
       setDescription(parentDraft.description);
