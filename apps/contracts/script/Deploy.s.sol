@@ -53,7 +53,7 @@ contract Deploy is Script {
         );
         console.log("CalldataReviewResolver deployed at:", address(resolver));
 
-        bytes32 schemaUID = schemaRegistry.register(REVIEW_SCHEMA, resolver, true);
+        bytes32 schemaUID = schemaRegistry.register(REVIEW_SCHEMA, resolver, false);
         console.log("Review schema UID:");
         console.logBytes32(schemaUID);
 

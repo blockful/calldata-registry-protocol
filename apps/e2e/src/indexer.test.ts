@@ -60,7 +60,7 @@ describe("Ponder Indexer Integration", () => {
       transport,
     });
 
-    const ponder = await startPonder(contractAddress, rpcUrl, undefined, deploy.easAddress, deploy.schemaUID);
+    const ponder = await startPonder(contractAddress, rpcUrl, undefined, deploy.easAddress, deploy.schemaUID, deploy.resolverAddress);
     ponderProcess = ponder.process;
     apiUrl = ponder.apiUrl;
 
@@ -220,7 +220,7 @@ describe("Ponder Indexer Integration", () => {
           data: {
             recipient: "0x0000000000000000000000000000000000000000" as Address,
             expirationTime: BigInt(0),
-            revocable: true,
+            revocable: false,
             refUID: "0x0000000000000000000000000000000000000000000000000000000000000000" as Hex,
             data: encodedData,
             value: BigInt(0),

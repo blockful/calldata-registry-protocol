@@ -34,7 +34,6 @@ export const review = onchainTable(
     attester: t.hex().notNull(),
     approved: t.boolean().notNull(),
     comment: t.text().notNull(),
-    revoked: t.boolean().notNull(),
     timestamp: t.bigint().notNull(),
     blockNumber: t.bigint().notNull(),
     txHash: t.hex().notNull(),

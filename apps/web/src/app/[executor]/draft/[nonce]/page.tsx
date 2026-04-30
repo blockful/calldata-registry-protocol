@@ -114,7 +114,7 @@ function ReviewForm({ draftId }: { draftId: string }) {
           data: {
             recipient: "0x0000000000000000000000000000000000000000" as `0x${string}`,
             expirationTime: BigInt(0),
-            revocable: true,
+            revocable: false,
             refUID: "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`,
             data: encodedData,
             value: BigInt(0),
@@ -239,7 +239,7 @@ export default function DraftDetailPage({
         )
       : [];
 
-  const activeReviews = detail.reviews?.filter((r) => !r.revoked) ?? [];
+  const activeReviews = detail.reviews ?? [];
   const approvalCount = activeReviews.filter((r) => r.approved).length;
   const rejectionCount = activeReviews.filter((r) => !r.approved).length;
 

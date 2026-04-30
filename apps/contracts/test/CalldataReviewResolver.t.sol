@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {CalldataRegistry} from "../src/CalldataRegistry.sol";
 import {CalldataReviewResolver} from "../src/CalldataReviewResolver.sol";
 import {ICalldataRegistry} from "../src/ICalldataRegistry.sol";
-import {IEAS, Attestation, AttestationRequest, AttestationRequestData, RevocationRequest, RevocationRequestData} from "@eas/contracts/IEAS.sol";
+import {IEAS, Attestation, AttestationRequest, AttestationRequestData} from "@eas/contracts/IEAS.sol";
 import {ISchemaRegistry, SchemaRecord} from "@eas/contracts/ISchemaRegistry.sol";
 import {EAS} from "@eas/contracts/EAS.sol";
 import {SchemaRegistry} from "@eas/contracts/SchemaRegistry.sol";
@@ -37,7 +37,7 @@ contract CalldataReviewResolverTest is Test {
 
         resolver = new CalldataReviewResolver(IEAS(address(eas)), ICalldataRegistry(address(registry)));
 
-        schemaUID = schemaRegistry.register(REVIEW_SCHEMA, resolver, true);
+        schemaUID = schemaRegistry.register(REVIEW_SCHEMA, resolver, false);
 
         proposer = makeAddr("proposer");
         reviewer = makeAddr("reviewer");
@@ -77,7 +77,7 @@ contract CalldataReviewResolverTest is Test {
                 data: AttestationRequestData({
                     recipient: address(0),
                     expirationTime: 0,
-                    revocable: true,
+                    revocable: false,
                     refUID: bytes32(0),
                     data: _encodeReview(draftId, approved, comment),
                     value: 0
@@ -93,7 +93,7 @@ contract CalldataReviewResolverTest is Test {
     function testSchemaRegistered() public view {
         SchemaRecord memory record = schemaRegistry.getSchema(schemaUID);
         assertEq(record.schema, REVIEW_SCHEMA);
-        assertTrue(record.revocable);
+        assertFalse(record.revocable);
         assertEq(address(record.resolver), address(resolver));
     }
 
@@ -104,6 +104,8 @@ contract CalldataReviewResolverTest is Test {
     function testAttestApproval() public {
         uint256 draftId = _publishDraft();
 
+        vm.expectEmit(false, true, true, true, address(resolver));
+        emit CalldataReviewResolver.ReviewCreated(bytes32(0), draftId, reviewer, true, "LGTM");
         bytes32 uid = _attest(reviewer, draftId, true, "LGTM");
 
         Attestation memory att = eas.getAttestation(uid);
@@ -177,29 +179,6 @@ contract CalldataReviewResolverTest is Test {
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // Revocation
-    // ═══════════════════════════════════════════════════════════════════
-
-    function testRevokeAttestation() public {
-        uint256 draftId = _publishDraft();
-        bytes32 uid = _attest(reviewer, draftId, true, "LGTM");
-
-        Attestation memory before = eas.getAttestation(uid);
-        assertEq(before.revocationTime, 0);
-
-        vm.prank(reviewer);
-        eas.revoke(
-            RevocationRequest({
-                schema: schemaUID,
-                data: RevocationRequestData({uid: uid, value: 0})
-            })
-        );
-
-        Attestation memory after_ = eas.getAttestation(uid);
-        assertGt(after_.revocationTime, 0);
-    }
-
-    // ═══════════════════════════════════════════════════════════════════
     // Rejections (Invalid Draft)
     // ═══════════════════════════════════════════════════════════════════
 
@@ -212,7 +191,7 @@ contract CalldataReviewResolverTest is Test {
                 data: AttestationRequestData({
                     recipient: address(0),
                     expirationTime: 0,
-                    revocable: true,
+                    revocable: false,
                     refUID: bytes32(0),
                     data: _encodeReview(999, true, "Should fail"),
                     value: 0
@@ -230,7 +209,7 @@ contract CalldataReviewResolverTest is Test {
                 data: AttestationRequestData({
                     recipient: address(0),
                     expirationTime: 0,
-                    revocable: true,
+                    revocable: false,
                     refUID: bytes32(0),
                     data: _encodeReview(0, true, "Draft zero"),
                     value: 0

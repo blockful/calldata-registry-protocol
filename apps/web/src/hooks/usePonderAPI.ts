@@ -23,7 +23,6 @@ export interface ReviewItem {
   attester: string;
   approved: boolean;
   comment: string;
-  revoked: boolean;
   timestamp: string;
   blockNumber: string;
   txHash: string;

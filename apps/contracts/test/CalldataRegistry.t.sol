@@ -53,7 +53,7 @@ contract CalldataRegistryTest is Test {
     function testPublishDraft() public {
         vm.prank(proposer);
         vm.expectEmit(true, true, true, true, address(registry));
-        emit ICalldataRegistry.DraftPublished(1, executor, proposer, 0);
+        emit ICalldataRegistry.DraftPublished(1, executor, proposer, targets, values, calldatas, description, extraData, 0);
         uint256 draftId = registry.publishDraft(executor, targets, values, calldatas, description, extraData, 0);
 
         assertEq(draftId, 1);
@@ -96,7 +96,7 @@ contract CalldataRegistryTest is Test {
         // Publish second draft referencing the first
         vm.prank(proposer);
         vm.expectEmit(true, true, true, true, address(registry));
-        emit ICalldataRegistry.DraftPublished(2, executor, proposer, firstDraftId);
+        emit ICalldataRegistry.DraftPublished(2, executor, proposer, targets, values, calldatas, "Updated description", extraData, firstDraftId);
         uint256 secondDraftId =
             registry.publishDraft(executor, targets, values, calldatas, "Updated description", extraData, firstDraftId);
 
@@ -156,7 +156,7 @@ contract CalldataRegistryTest is Test {
 
         vm.prank(relayer);
         vm.expectEmit(true, true, true, true, address(registry));
-        emit ICalldataRegistry.DraftPublished(1, executor, proposer, 0);
+        emit ICalldataRegistry.DraftPublished(1, executor, proposer, targets, values, calldatas, description, extraData, 0);
         uint256 draftId =
             registry.publishDraftBySig(executor, targets, values, calldatas, description, extraData, 0, proposer, deadline, sig);
 
