@@ -1,12 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useAccount } from "wagmi";
 import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Code2,
+  Eye,
   GitBranch,
   GitFork,
   MessageSquare,
@@ -28,13 +29,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import {
   Table,
   TableBody,
@@ -59,28 +53,8 @@ import {
   type ReviewDecision,
 } from "@/lib/mock-proposals";
 
-type DraftForm = {
-  executor: string;
-  description: string;
-  extraData: string;
-  previousVersion: string | null;
-  target: string;
-  value: string;
-  calldata: string;
-};
-
 const emptyAction: CalldataAction = {
   id: "empty-action",
-  target: "",
-  value: "0",
-  calldata: "0x",
-};
-
-const emptyForm: DraftForm = {
-  executor: "",
-  description: "",
-  extraData: "0x",
-  previousVersion: null,
   target: "",
   value: "0",
   calldata: "0x",
@@ -204,15 +178,6 @@ function layoutDrafts(drafts: Draft[]) {
   });
 }
 
-function getNextDraftId(drafts: Draft[]) {
-  const maxNumericId = drafts.reduce((max, draft) => {
-    const value = Number(draft.id);
-    return Number.isFinite(value) ? Math.max(max, value) : max;
-  }, 0);
-
-  return String(maxNumericId + 1);
-}
-
 function getInitialAction(draft: Draft) {
   return draft.actions[0] ?? emptyAction;
 }
@@ -240,12 +205,10 @@ function DraftTable({
   drafts,
   selectedDraftId,
   onSelect,
-  onFork,
 }: {
   drafts: Draft[];
   selectedDraftId: string;
   onSelect: (draftId: string) => void;
-  onFork: (draft: Draft) => void;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -257,7 +220,7 @@ function DraftTable({
             <TableHead>Executor</TableHead>
             <TableHead>Timestamp</TableHead>
             <TableHead>Reviews</TableHead>
-            <TableHead className="w-[92px]"></TableHead>
+            <TableHead className="w-[172px]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -301,18 +264,34 @@ function DraftTable({
                 <DraftReviewsBadge draft={draft} />
               </TableCell>
               <TableCell>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onFork(draft);
-                  }}
-                >
-                  <GitFork className="size-3.5" />
-                  Fork
-                </Button>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant={draft.id === selectedDraftId ? "secondary" : "outline"}
+                    size="sm"
+                    aria-label={`View draft #${draft.id}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelect(draft.id);
+                    }}
+                  >
+                    <Eye className="size-3.5" />
+                    View
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    nativeButton={false}
+                    aria-label={`Fork draft #${draft.id}`}
+                    render={
+                      <Link href={`/drafts/new?previousVersion=${draft.id}`} />
+                    }
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <GitFork className="size-3.5" />
+                    Fork
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}
@@ -335,7 +314,7 @@ function DraftGraph({
   const byId = new Map(positionedDrafts.map((draft) => [draft.id, draft]));
 
   return (
-    <div className="relative h-[300px] overflow-hidden rounded-lg border bg-muted/20">
+    <div className="relative h-[420px] overflow-hidden rounded-lg border bg-muted/20">
       <svg
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 size-full"
@@ -381,7 +360,7 @@ function DraftGraph({
                   type="button"
                   variant={isSelected ? "default" : "outline"}
                   className={cn(
-                    "absolute h-16 w-[8.5rem] -translate-x-1/2 -translate-y-1/2 flex-col gap-0.5 rounded-lg px-2 py-2",
+                    "absolute h-14 w-[8.5rem] -translate-x-1/2 -translate-y-1/2 flex-col gap-0.5 rounded-lg px-2 py-2",
                     !isSelected && "bg-background/90 backdrop-blur"
                   )}
                   style={{ left: `${draft.x}%`, top: `${draft.y}%` }}
@@ -532,7 +511,6 @@ function ReviewsList({ reviews }: { reviews: DraftReview[] }) {
 }
 
 export function ProposalReviewWorkspace() {
-  const { address } = useAccount();
   const [drafts, setDrafts] = useState<Draft[]>(mockDrafts);
   const [selectedDraftId, setSelectedDraftId] = useState(mockDrafts[0].id);
   const [selectedActionId, setSelectedActionId] = useState(
@@ -541,8 +519,6 @@ export function ProposalReviewWorkspace() {
   const [query, setQuery] = useState("");
   const [reviewer, setReviewer] = useState("0xReviewer");
   const [reviewComment, setReviewComment] = useState("");
-  const [isDraftSheetOpen, setIsDraftSheetOpen] = useState(false);
-  const [draftForm, setDraftForm] = useState<DraftForm>(emptyForm);
 
   const selectedDraft =
     drafts.find((draft) => draft.id === selectedDraftId) ?? drafts[0];
@@ -580,26 +556,6 @@ export function ProposalReviewWorkspace() {
 
     setSelectedDraftId(draft.id);
     setSelectedActionId(getInitialAction(draft).id);
-  }
-
-  function openCreateDraft() {
-    setDraftForm(emptyForm);
-    setIsDraftSheetOpen(true);
-  }
-
-  function openForkDraft(draft: Draft) {
-    const action = getInitialAction(draft);
-
-    setDraftForm({
-      executor: draft.executor,
-      description: "",
-      extraData: draft.extraData || "0x",
-      previousVersion: draft.id,
-      target: action.target,
-      value: action.value,
-      calldata: action.calldata,
-    });
-    setIsDraftSheetOpen(true);
   }
 
   function updateSelectedAction(nextAction: CalldataAction) {
@@ -642,43 +598,6 @@ export function ProposalReviewWorkspace() {
     setReviewComment("");
   }
 
-  function createDraft() {
-    if (
-      !draftForm.executor.trim() ||
-      !draftForm.target.trim() ||
-      !draftForm.calldata.trim()
-    ) {
-      return;
-    }
-
-    const draftId = getNextDraftId(drafts);
-    const actionId = `draft-${draftId}-action-1`;
-    const draft: Draft = {
-      id: draftId,
-      executor: draftForm.executor.trim(),
-      proposer: address ?? "not connected",
-      description: draftForm.description.trim(),
-      extraData: draftForm.extraData.trim() || "0x",
-      previousVersion: draftForm.previousVersion,
-      timestamp: "Just now",
-      actions: [
-        {
-          id: actionId,
-          target: draftForm.target.trim(),
-          value: draftForm.value.trim() || "0",
-          calldata: draftForm.calldata.trim(),
-        },
-      ],
-      reviews: [],
-    };
-
-    setDrafts((current) => [draft, ...current]);
-    setSelectedDraftId(draft.id);
-    setSelectedActionId(actionId);
-    setDraftForm(emptyForm);
-    setIsDraftSheetOpen(false);
-  }
-
   return (
     <div className="mx-auto grid w-full max-w-[1440px] gap-6 px-4 py-6 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -694,7 +613,7 @@ export function ProposalReviewWorkspace() {
             Calldata Drafts
           </h1>
         </div>
-        <Button type="button" onClick={openCreateDraft}>
+        <Button nativeButton={false} render={<Link href="/drafts/new" />}>
           <Plus className="size-4" />
           Create draft
         </Button>
@@ -723,7 +642,6 @@ export function ProposalReviewWorkspace() {
             drafts={filteredDrafts}
             selectedDraftId={selectedDraft.id}
             onSelect={selectDraft}
-            onFork={openForkDraft}
           />
         </CardContent>
       </Card>
@@ -990,129 +908,6 @@ export function ProposalReviewWorkspace() {
           </Card>
         </section>
       </div>
-
-      <Sheet open={isDraftSheetOpen} onOpenChange={setIsDraftSheetOpen}>
-        <SheetContent className="w-[min(94vw,520px)] overflow-y-auto sm:max-w-[520px]">
-          <SheetHeader>
-            <SheetTitle>
-              {draftForm.previousVersion ? "Fork draft" : "Create draft"}
-            </SheetTitle>
-            <SheetDescription>
-              {draftForm.previousVersion
-                ? `previousVersion = ${draftForm.previousVersion}`
-                : "previousVersion = 0"}
-            </SheetDescription>
-          </SheetHeader>
-
-          <div className="grid gap-4 px-4 pb-4">
-            <div className="grid gap-2">
-              <Label htmlFor="new-executor">Executor address or ENS</Label>
-              <Input
-                id="new-executor"
-                value={draftForm.executor}
-                onChange={(event) =>
-                  setDraftForm((current) => ({
-                    ...current,
-                    executor: event.target.value,
-                  }))
-                }
-                className="font-mono"
-                placeholder="0x... or name.eth"
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="new-description">Description</Label>
-              <Textarea
-                id="new-description"
-                value={draftForm.description}
-                onChange={(event) =>
-                  setDraftForm((current) => ({
-                    ...current,
-                    description: event.target.value,
-                  }))
-                }
-                placeholder="Markdown description"
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="new-extra-data">Extra data</Label>
-              <Input
-                id="new-extra-data"
-                value={draftForm.extraData}
-                onChange={(event) =>
-                  setDraftForm((current) => ({
-                    ...current,
-                    extraData: event.target.value,
-                  }))
-                }
-                className="font-mono"
-              />
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-[1fr_120px]">
-              <div className="grid gap-2">
-                <Label htmlFor="new-target">Target</Label>
-                <Input
-                  id="new-target"
-                  value={draftForm.target}
-                  onChange={(event) =>
-                    setDraftForm((current) => ({
-                      ...current,
-                      target: event.target.value,
-                    }))
-                  }
-                  className="font-mono"
-                  placeholder="0x..."
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="new-value">Value</Label>
-                <Input
-                  id="new-value"
-                  value={draftForm.value}
-                  onChange={(event) =>
-                    setDraftForm((current) => ({
-                      ...current,
-                      value: event.target.value,
-                    }))
-                  }
-                  className="font-mono"
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="new-calldata">Calldata</Label>
-              <Textarea
-                id="new-calldata"
-                value={draftForm.calldata}
-                onChange={(event) =>
-                  setDraftForm((current) => ({
-                    ...current,
-                    calldata: event.target.value,
-                  }))
-                }
-                className="min-h-[140px] font-mono text-xs"
-              />
-            </div>
-
-            <Button
-              type="button"
-              onClick={createDraft}
-              disabled={
-                !draftForm.executor.trim() ||
-                !draftForm.target.trim() ||
-                !draftForm.calldata.trim()
-              }
-            >
-              <Plus className="size-4" />
-              {draftForm.previousVersion ? "Create fork" : "Create draft"}
-            </Button>
-          </div>
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }
