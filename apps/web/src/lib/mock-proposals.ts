@@ -2,9 +2,9 @@ export type ProposalStatus = "draft" | "in_review" | "approved" | "rejected";
 
 export type ReviewDecision = "approved" | "rejected";
 
-export interface Org {
+export interface Executor {
   id: string;
-  name: string;
+  label: string;
   address: string;
 }
 
@@ -39,7 +39,7 @@ export interface Review {
 
 export interface Proposal {
   id: string;
-  orgId: string;
+  executorId: string;
   title: string;
   description: string;
   status: ProposalStatus;
@@ -48,20 +48,20 @@ export interface Proposal {
   reviews: Review[];
 }
 
-export const mockOrgs: Org[] = [
+export const mockExecutors: Executor[] = [
   {
-    id: "protocol-dao",
-    name: "Protocol DAO",
+    id: "executor-a",
+    label: "Executor A",
     address: "0x5b38Da6a701c568545dCfcB03FcB875f56beddC4",
   },
   {
-    id: "security-council",
-    name: "Security Council",
+    id: "executor-b",
+    label: "Executor B",
     address: "0x4200000000000000000000000000000000000007",
   },
   {
-    id: "ops-multisig",
-    name: "Ops Multisig",
+    id: "executor-c",
+    label: "Executor C",
     address: "0x9fC3da866e7DF3a1c57adE1a97c9f00a70f010c8",
   },
 ];
@@ -69,10 +69,10 @@ export const mockOrgs: Org[] = [
 export const mockProposals: Proposal[] = [
   {
     id: "prop-001",
-    orgId: "protocol-dao",
-    title: "Treasury parameter update",
+    executorId: "executor-a",
+    title: "Parameter update",
     description:
-      "Updates one treasury parameter and publishes the exact calldata for review.",
+      "Updates one parameter and publishes the exact calldata for review.",
     status: "in_review",
     createdAt: "Apr 28, 2026",
     versions: [
@@ -131,15 +131,15 @@ export const mockProposals: Proposal[] = [
         actionId: "prop-001-v2-a1",
         reviewer: "0x5F91...bE21",
         decision: "approved",
-        comment: "The updated calldata matches the reviewed parameter value.",
+        comment: "The updated calldata matches the reviewed value.",
         createdAt: "Apr 29, 2026",
       },
     ],
   },
   {
     id: "prop-002",
-    orgId: "security-council",
-    title: "Guardian signer rotation",
+    executorId: "executor-b",
+    title: "Signer rotation",
     description:
       "Publishes calldata for rotating one signer and updating the owner set.",
     status: "draft",
@@ -217,17 +217,17 @@ export const mockProposals: Proposal[] = [
         actionId: "prop-002-v1-a1",
         reviewer: "0x68A4...c921",
         decision: "rejected",
-        comment: "Needs the related threshold update in the same proposal.",
+        comment: "Needs the related update in the same proposal.",
         createdAt: "Apr 30, 2026",
       },
     ],
   },
   {
     id: "prop-003",
-    orgId: "ops-multisig",
-    title: "Fee collector transfer",
+    executorId: "executor-c",
+    title: "Token transfer",
     description:
-      "Transfers fee collector funds to the organization treasury address.",
+      "Transfers tokens from the executor to a destination address.",
     status: "approved",
     createdAt: "Apr 27, 2026",
     versions: [

@@ -57,7 +57,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
-  mockOrgs,
+  mockExecutors,
   mockProposals,
   type CalldataAction,
   type Proposal,
@@ -123,8 +123,11 @@ function shortAddress(value: string) {
   return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
 
-function getOrgName(orgId: string) {
-  return mockOrgs.find((org) => org.id === orgId)?.name ?? orgId;
+function getExecutorLabel(executorId: string) {
+  return (
+    mockExecutors.find((executor) => executor.id === executorId)?.label ??
+    executorId
+  );
 }
 
 function getSelectedVersion(proposal: Proposal, versionId: string) {
@@ -168,7 +171,7 @@ function ProposalList({
               <Badge variant="outline">{proposal.reviews.length} reviews</Badge>
             </span>
             <span className="text-xs text-muted-foreground">
-              {getOrgName(proposal.orgId)}
+              {getExecutorLabel(proposal.executorId)}
             </span>
           </span>
         </Button>
@@ -391,7 +394,9 @@ function ReviewsList({
 
 export function ProposalReviewWorkspace() {
   const [proposals, setProposals] = useState<Proposal[]>(mockProposals);
-  const [selectedOrgId, setSelectedOrgId] = useState(mockOrgs[0].id);
+  const [selectedExecutorId, setSelectedExecutorId] = useState(
+    mockExecutors[0].id
+  );
   const [selectedProposalId, setSelectedProposalId] = useState(mockProposals[0].id);
   const [selectedVersionId, setSelectedVersionId] = useState(
     mockProposals[0].versions[mockProposals[0].versions.length - 1].id
@@ -405,7 +410,7 @@ export function ProposalReviewWorkspace() {
   const [newProposal, setNewProposal] = useState({
     title: "",
     description: "",
-    orgId: mockOrgs[0].id,
+    executorId: mockExecutors[0].id,
     target: "",
     value: "0",
     calldata: "0x",
@@ -424,7 +429,7 @@ export function ProposalReviewWorkspace() {
     const normalizedQuery = query.trim().toLowerCase();
 
     return proposals.filter((proposal) => {
-      const matchesOrg = proposal.orgId === selectedOrgId;
+      const matchesExecutor = proposal.executorId === selectedExecutorId;
       const matchesQuery =
         !normalizedQuery ||
         [proposal.id, proposal.title, proposal.description]
@@ -432,9 +437,9 @@ export function ProposalReviewWorkspace() {
           .toLowerCase()
           .includes(normalizedQuery);
 
-      return matchesOrg && matchesQuery;
+      return matchesExecutor && matchesQuery;
     });
-  }, [proposals, query, selectedOrgId]);
+  }, [proposals, query, selectedExecutorId]);
 
   function selectProposal(proposalId: string) {
     const proposal = proposals.find((item) => item.id === proposalId);
@@ -442,7 +447,7 @@ export function ProposalReviewWorkspace() {
 
     const nextVersion = proposal.versions[proposal.versions.length - 1];
     setSelectedProposalId(proposal.id);
-    setSelectedOrgId(proposal.orgId);
+    setSelectedExecutorId(proposal.executorId);
     setSelectedVersionId(nextVersion.id);
     setSelectedActionId(nextVersion.actions[0]?.id ?? "");
   }
@@ -519,7 +524,7 @@ export function ProposalReviewWorkspace() {
     const actionId = `${versionId}-a1`;
     const proposal: Proposal = {
       id: proposalId,
-      orgId: newProposal.orgId,
+      executorId: newProposal.executorId,
       title: newProposal.title.trim(),
       description: newProposal.description.trim() || "No description provided.",
       status: "draft",
@@ -548,14 +553,14 @@ export function ProposalReviewWorkspace() {
     };
 
     setProposals((current) => [proposal, ...current]);
-    setSelectedOrgId(proposal.orgId);
+    setSelectedExecutorId(proposal.executorId);
     setSelectedProposalId(proposal.id);
     setSelectedVersionId(versionId);
     setSelectedActionId(actionId);
     setNewProposal({
       title: "",
       description: "",
-      orgId: newProposal.orgId,
+      executorId: newProposal.executorId,
       target: "",
       value: "0",
       calldata: "0x",
@@ -569,7 +574,7 @@ export function ProposalReviewWorkspace() {
           <div className="mb-3 flex flex-wrap gap-2">
             <Badge variant="secondary">
               <Building2 className="size-3" />
-              {getOrgName(selectedProposal.orgId)}
+              {getExecutorLabel(selectedProposal.executorId)}
             </Badge>
             <StatusBadge status={selectedProposal.status} />
           </div>
@@ -577,7 +582,7 @@ export function ProposalReviewWorkspace() {
             Calldata Proposal Review
           </h1>
           <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-            Create proposals, find them by organization, navigate their version
+            Create proposals, find them by executor, navigate their version
             graph, edit calldata, and record review decisions.
           </p>
         </div>
@@ -595,13 +600,13 @@ export function ProposalReviewWorkspace() {
             <SheetHeader>
               <SheetTitle>Find proposals</SheetTitle>
               <SheetDescription>
-                Filter by organization and proposal text.
+                Filter by executor and proposal text.
               </SheetDescription>
             </SheetHeader>
             <div className="grid gap-4 px-4">
-              <OrgAndSearch
-                selectedOrgId={selectedOrgId}
-                setSelectedOrgId={setSelectedOrgId}
+              <ExecutorAndSearch
+                selectedExecutorId={selectedExecutorId}
+                setSelectedExecutorId={setSelectedExecutorId}
                 query={query}
                 setQuery={setQuery}
               />
@@ -621,13 +626,13 @@ export function ProposalReviewWorkspace() {
             <CardHeader>
               <CardTitle>Find proposals</CardTitle>
               <CardDescription>
-                Filter the proposal list by organization.
+                Filter the proposal list by executor.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <OrgAndSearch
-                selectedOrgId={selectedOrgId}
-                setSelectedOrgId={setSelectedOrgId}
+              <ExecutorAndSearch
+                selectedExecutorId={selectedExecutorId}
+                setSelectedExecutorId={setSelectedExecutorId}
                 query={query}
                 setQuery={setQuery}
               />
@@ -665,25 +670,25 @@ export function ProposalReviewWorkspace() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label>Organization</Label>
+                  <Label>Executor</Label>
                   <Select
-                    value={newProposal.orgId}
+                    value={newProposal.executorId}
                     onValueChange={(value) => {
                       if (typeof value === "string") {
                         setNewProposal((current) => ({
                           ...current,
-                          orgId: value,
+                          executorId: value,
                         }));
                       }
                     }}
                   >
                     <SelectTrigger className="w-full">
-                      <span>{getOrgName(newProposal.orgId)}</span>
+                      <span>{getExecutorLabel(newProposal.executorId)}</span>
                     </SelectTrigger>
                     <SelectContent>
-                      {mockOrgs.map((org) => (
-                        <SelectItem key={org.id} value={org.id}>
-                          {org.name}
+                      {mockExecutors.map((executor) => (
+                        <SelectItem key={executor.id} value={executor.id}>
+                          {executor.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -763,7 +768,8 @@ export function ProposalReviewWorkspace() {
                 Proposal history
               </CardTitle>
               <CardDescription>
-                {selectedProposal.title} in {getOrgName(selectedProposal.orgId)}
+                {selectedProposal.title} in{" "}
+                {getExecutorLabel(selectedProposal.executorId)}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -967,34 +973,34 @@ export function ProposalReviewWorkspace() {
   );
 }
 
-function OrgAndSearch({
-  selectedOrgId,
-  setSelectedOrgId,
+function ExecutorAndSearch({
+  selectedExecutorId,
+  setSelectedExecutorId,
   query,
   setQuery,
 }: {
-  selectedOrgId: string;
-  setSelectedOrgId: (orgId: string) => void;
+  selectedExecutorId: string;
+  setSelectedExecutorId: (executorId: string) => void;
   query: string;
   setQuery: (query: string) => void;
 }) {
   return (
     <div className="grid gap-4">
       <div className="grid gap-2">
-        <Label>Organization</Label>
+        <Label>Executor</Label>
         <Select
-          value={selectedOrgId}
+          value={selectedExecutorId}
           onValueChange={(value) => {
-            if (typeof value === "string") setSelectedOrgId(value);
+            if (typeof value === "string") setSelectedExecutorId(value);
           }}
         >
           <SelectTrigger className="w-full">
-            <span>{getOrgName(selectedOrgId)}</span>
+            <span>{getExecutorLabel(selectedExecutorId)}</span>
           </SelectTrigger>
           <SelectContent>
-            {mockOrgs.map((org) => (
-              <SelectItem key={org.id} value={org.id}>
-                {org.name}
+            {mockExecutors.map((executor) => (
+              <SelectItem key={executor.id} value={executor.id}>
+                {executor.label}
               </SelectItem>
             ))}
           </SelectContent>

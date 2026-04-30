@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.28;
 
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
@@ -10,19 +10,13 @@ contract CalldataRegistry is ICalldataRegistry, EIP712, Nonces {
     // ── EIP-712 Type Hash ───────────────────────────────────────────────
 
     bytes32 public constant DRAFT_PUBLISH_TYPEHASH = keccak256(
-        "DraftPublish(address org,bytes32 actionsHash,bytes32 descriptionHash,bytes32 extraDataHash,uint256 previousVersion,address proposer,uint256 nonce,uint256 deadline)"
+        "DraftPublish(address executor,bytes32 actionsHash,bytes32 descriptionHash,bytes32 extraDataHash,uint256 previousVersion,address proposer,uint256 nonce,uint256 deadline)"
     );
 
     // ── Structs ─────────────────────────────────────────────────────────
 
-    struct Org {
-        string name;
-        string metadataURI;
-        bool registered;
-    }
-
     struct Draft {
-        address org;
+        address executor;
         address proposer;
         address[] targets;
         uint256[] values;
@@ -35,14 +29,11 @@ contract CalldataRegistry is ICalldataRegistry, EIP712, Nonces {
 
     // ── Storage ─────────────────────────────────────────────────────────
 
-    mapping(address => Org) private _orgs;
     mapping(uint256 => Draft) private _drafts;
     uint256 private _nextDraftId = 1;
 
     // ── Errors ──────────────────────────────────────────────────────────
 
-    error OrgAlreadyRegistered(address orgId);
-    error OrgNotRegistered(address orgId);
     error ArrayLengthMismatch();
     error InvalidPreviousVersion(uint256 previousVersion);
     error DeadlineExpired(uint256 deadline);
@@ -52,33 +43,10 @@ contract CalldataRegistry is ICalldataRegistry, EIP712, Nonces {
 
     constructor() EIP712("CalldataRegistry", "1") {}
 
-    // ── Org Management ──────────────────────────────────────────────────
-
-    function registerOrg(string calldata name, string calldata metadataURI) external {
-        if (_orgs[msg.sender].registered) {
-            revert OrgAlreadyRegistered(msg.sender);
-        }
-
-        _orgs[msg.sender] = Org({name: name, metadataURI: metadataURI, registered: true});
-
-        emit OrgRegistered(msg.sender, name, metadataURI);
-    }
-
-    function updateOrg(string calldata name, string calldata metadataURI) external {
-        if (!_orgs[msg.sender].registered) {
-            revert OrgNotRegistered(msg.sender);
-        }
-
-        _orgs[msg.sender].name = name;
-        _orgs[msg.sender].metadataURI = metadataURI;
-
-        emit OrgUpdated(msg.sender, name, metadataURI);
-    }
-
     // ── Draft Publishing ────────────────────────────────────────────────
 
     function publishDraft(
-        address org,
+        address executor,
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas,
@@ -86,11 +54,11 @@ contract CalldataRegistry is ICalldataRegistry, EIP712, Nonces {
         bytes calldata extraData,
         uint256 previousVersion
     ) external returns (uint256 draftId) {
-        draftId = _publishDraft(org, targets, values, calldatas, description, extraData, previousVersion, msg.sender);
+        draftId = _publishDraft(executor, targets, values, calldatas, description, extraData, previousVersion, msg.sender);
     }
 
     function publishDraftBySig(
-        address org,
+        address executor,
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas,
@@ -112,7 +80,7 @@ contract CalldataRegistry is ICalldataRegistry, EIP712, Nonces {
         bytes32 structHash = keccak256(
             abi.encode(
                 DRAFT_PUBLISH_TYPEHASH,
-                org,
+                executor,
                 actionsHash,
                 descriptionHash,
                 extraDataHash,
@@ -129,25 +97,16 @@ contract CalldataRegistry is ICalldataRegistry, EIP712, Nonces {
             revert InvalidSignature();
         }
 
-        draftId = _publishDraft(org, targets, values, calldatas, description, extraData, previousVersion, proposer);
+        draftId = _publishDraft(executor, targets, values, calldatas, description, extraData, previousVersion, proposer);
     }
 
     // ── Views ───────────────────────────────────────────────────────────
-
-    function getOrg(address orgId)
-        external
-        view
-        returns (string memory name, string memory metadataURI, bool registered)
-    {
-        Org storage o = _orgs[orgId];
-        return (o.name, o.metadataURI, o.registered);
-    }
 
     function getDraft(uint256 draftId)
         external
         view
         returns (
-            address org,
+            address executor,
             address proposer,
             address[] memory targets,
             uint256[] memory values,
@@ -160,7 +119,7 @@ contract CalldataRegistry is ICalldataRegistry, EIP712, Nonces {
     {
         Draft storage d = _drafts[draftId];
         return (
-            d.org,
+            d.executor,
             d.proposer,
             d.targets,
             d.values,
@@ -172,6 +131,10 @@ contract CalldataRegistry is ICalldataRegistry, EIP712, Nonces {
         );
     }
 
+    function draftExists(uint256 draftId) external view returns (bool) {
+        return _drafts[draftId].timestamp != 0;
+    }
+
     // ── Nonces Override ────────────────────────────────────────────────
 
     function nonces(address owner) public view override(ICalldataRegistry, Nonces) returns (uint256) {
@@ -181,7 +144,7 @@ contract CalldataRegistry is ICalldataRegistry, EIP712, Nonces {
     // ── Internal ────────────────────────────────────────────────────────
 
     function _publishDraft(
-        address org,
+        address executor,
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas,
@@ -201,7 +164,7 @@ contract CalldataRegistry is ICalldataRegistry, EIP712, Nonces {
         draftId = _nextDraftId++;
 
         Draft storage d = _drafts[draftId];
-        d.org = org;
+        d.executor = executor;
         d.proposer = proposer;
         d.targets = targets;
         d.values = values;
@@ -211,6 +174,6 @@ contract CalldataRegistry is ICalldataRegistry, EIP712, Nonces {
         d.previousVersion = previousVersion;
         d.timestamp = block.timestamp;
 
-        emit DraftPublished(draftId, org, proposer, previousVersion);
+        emit DraftPublished(draftId, executor, proposer, previousVersion);
     }
 }

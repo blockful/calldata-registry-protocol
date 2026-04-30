@@ -22,9 +22,9 @@ A fully on-chain registry where anyone can publish proposal calldata drafts for 
 
 **Everything is on-chain.** Targets, values, calldatas, description, and metadata are all stored in the contract. No IPFS. No external dependencies. The chain is the source of truth.
 
-**Draft publishing is fully permissionless.** Anyone can publish a draft targeting any address. No registration required.
+**Draft publishing is fully permissionless.** Anyone can publish a draft targeting any executor address. No registration required.
 
-**Organization registration is optional.** An on-chain entity (timelock, Safe, etc.) can call `registerOrg()` to claim its address and attach metadata. Only the address itself can register (`msg.sender` is the org). Drafts work whether the target org is registered or not.
+**Drafts point to an executor.** The `executor` is the address that will execute the calldata — a timelock, multisig, governor, or any contract. This makes it straightforward to simulate the calldata (e.g., via Tenderly) by running it from the executor's context.
 
 **Drafts have a proposer.** Every draft records who authored it — the address that intends to submit the proposal or initiate the transaction.
 
@@ -39,27 +39,12 @@ A fully on-chain registry where anyone can publish proposal calldata drafts for 
 ```solidity
 interface ICalldataRegistry {
 
-    // ── Optional Org Registration ──────────────────────────
-
-    /// @notice Register the caller as an org with metadata.
-    ///         msg.sender becomes the orgId. Reverts if already registered.
-    function registerOrg(
-        string calldata name,
-        string calldata metadataURI
-    ) external;
-
-    /// @notice Update org metadata. Only callable by the registered org.
-    function updateOrg(
-        string calldata name,
-        string calldata metadataURI
-    ) external;
-
     // ── Permissionless Draft Publishing ────────────────────
 
     /// @notice Publish a draft with full calldata on-chain.
     ///         msg.sender is recorded as the proposer.
     function publishDraft(
-        address org,
+        address executor,
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas,
@@ -71,7 +56,7 @@ interface ICalldataRegistry {
     /// @notice Publish a draft on behalf of a proposer via signature.
     ///         Supports EOA (ecrecover) and smart contract (EIP-1271) signers.
     function publishDraftBySig(
-        address org,
+        address executor,
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas,
@@ -85,16 +70,9 @@ interface ICalldataRegistry {
 
     // ── Views ──────────────────────────────────────────────
 
-    function getOrg(address orgId)
-        external view returns (
-            string memory name,
-            string memory metadataURI,
-            bool registered
-        );
-
     function getDraft(uint256 draftId)
         external view returns (
-            address org,
+            address executor,
             address proposer,
             address[] memory targets,
             uint256[] memory values,
@@ -104,6 +82,8 @@ interface ICalldataRegistry {
             uint256 previousVersion,
             uint256 timestamp
         );
+
+    function draftExists(uint256 draftId) external view returns (bool);
 
     function nonces(address proposer) external view returns (uint256);
 }
@@ -115,7 +95,7 @@ interface ICalldataRegistry {
 
 | Parameter | Description |
 |-----------|-------------|
-| `org` | Target organization address (timelock, Safe, any executor). Does not need to be registered. |
+| `executor` | The address that will execute the calldata (timelock, Safe, governor, any contract). |
 | `targets` | Ordered array of contract addresses to call. |
 | `values` | Ordered array of ETH values (in wei) to send with each call. |
 | `calldatas` | Ordered array of encoded function calls. |
@@ -135,12 +115,9 @@ The `(targets, values, calldatas)` tuple maps directly to:
 ## Events
 
 ```solidity
-event OrgRegistered(address indexed orgId, string name, string metadataURI);
-event OrgUpdated(address indexed orgId, string name, string metadataURI);
-
 event DraftPublished(
     uint256 indexed draftId,
-    address indexed org,
+    address indexed executor,
     address indexed proposer,
     uint256 previousVersion
 );
@@ -154,7 +131,7 @@ The `DraftPublished` event intentionally excludes calldata (which can be very la
 
 ```
 DraftPublish(
-    address org,
+    address executor,
     bytes32 actionsHash,
     bytes32 descriptionHash,
     bytes32 extraDataHash,
@@ -234,13 +211,85 @@ OpenZeppelin Contracts v5.x:
 
 **Proposer, not author.** The field is called `proposer` because it represents the address that intends to submit the proposal — not just whoever wrote the text. This maps to the governance concept of a proposer.
 
-**No governor management.** The org is the executor address. Which governor or signing mechanism feeds into it is an execution concern, not a draft concern.
+**No governor management.** The executor is the address that runs the calldata. Which governor or signing mechanism feeds into it is an execution concern, not a draft concern.
 
-**Permissionless drafts, optional identity.** Drafts target a raw address. Registration just attaches human-readable metadata.
+**Permissionless drafts.** Anyone can publish a draft targeting any executor address. No registration or identity layer required.
 
 **Immutable contract.** The registry should not be upgradable. Its value depends on the permanence of records.
 
 **Deterministic multi-chain deployment.** Deploy at the same address on every chain via CREATE2.
+
+---
+
+## Review Attestations (EAS Integration)
+
+Calldata verification needs a public record. Once a reviewer inspects a draft — decoding it, simulating it, checking the targets — there should be a way to say "I reviewed this" on-chain, with an optional comment linking to evidence (a test suite, a Tenderly simulation, a written analysis).
+
+The protocol uses the [Ethereum Attestation Service (EAS)](https://attest.org) for this. EAS provides a standard attestation infrastructure already deployed on Ethereum, Optimism, Base, Arbitrum, and other chains.
+
+### Architecture
+
+A **separate contract** — `CalldataReviewResolver` — acts as an EAS schema resolver. It validates that the `draftId` in every attestation references an existing draft in the `CalldataRegistry`. This keeps the registry immutable and minimal while allowing the review layer to evolve independently.
+
+### Schema
+
+```
+uint256 draftId, bool approved, string comment
+```
+
+| Field | Description |
+|-------|-------------|
+| `draftId` | The CalldataRegistry draft being reviewed. Must exist (enforced by the resolver). |
+| `approved` | Whether the reviewer considers the calldata correct and safe. |
+| `comment` | Free text — a URL to a test on GitHub, a Tenderly simulation link, a written analysis, or empty. |
+
+### Resolver
+
+```solidity
+contract CalldataReviewResolver is SchemaResolver {
+    ICalldataRegistry public immutable registry;
+
+    function onAttest(Attestation calldata attestation, uint256) internal view override returns (bool) {
+        (uint256 draftId,,) = abi.decode(attestation.data, (uint256, bool, string));
+        if (!registry.draftExists(draftId)) revert DraftNotFound(draftId);
+        return true;
+    }
+
+    function onRevoke(Attestation calldata, uint256) internal pure override returns (bool) {
+        return true; // reviewers can retract their review
+    }
+}
+```
+
+### Flow
+
+```
+1. Reviewer inspects a draft → decodes calldata, simulates, verifies targets
+
+2. Reviewer attests via EAS:
+   EAS.attest({
+     schema: reviewSchemaUID,
+     data: { draftId: 42, approved: true, comment: "https://github.com/.../test.t.sol" }
+   })
+
+3. Resolver validates draftId exists in CalldataRegistry → attestation recorded
+
+4. Anyone queries EAS for attestations on draft #42 → sees who reviewed, approved/rejected, and their evidence
+```
+
+### Design Decisions
+
+**EAS over custom contract.** EAS provides revocable attestations, delegated attestation, multi-attestation, on-chain/off-chain options, and an existing explorer — no need to rebuild this infrastructure.
+
+**Resolver validates draft existence.** Prevents attestations for drafts that don't exist. If a draft exists, anyone can review it — no access control on reviews, matching the permissionless philosophy of the registry.
+
+**Revocable.** Reviewers can retract their approval if they discover issues after attesting. The revocation is publicly visible.
+
+**Comment as free text.** Structured metadata could be encoded in `extraData` in future schemas. For now, a plain string covers the main use cases: URLs, short notes, or empty for a simple approve/reject signal.
+
+### EAS Deployment
+
+On chains where EAS is already deployed (Ethereum, Optimism, Base, Arbitrum, etc.), the resolver is deployed and the schema is registered against the existing EAS infrastructure. For local development (Anvil), the deploy script deploys EAS, SchemaRegistry, the resolver, and registers the schema in one transaction.
 
 ---
 
@@ -250,6 +299,6 @@ OpenZeppelin Contracts v5.x:
 - **Calldata simulation.** Platforms SHOULD provide fork-based simulation so reviewers can verify state changes, not just raw bytes.
 - **Stale drafts.** Calldata valid at draft time may be dangerous later. Platforms SHOULD flag drafts whose target contracts have changed since publication.
 - **Replay protection.** Per-proposer nonces + chain-bound domain separator + deadline prevent signature replay.
-- **No access control on drafts.** Anyone can publish a draft targeting any org. This is intentional — governance should be open. Spam is handled at the platform/indexer layer, not the protocol layer.
+- **No access control on drafts.** Anyone can publish a draft targeting any executor. This is intentional — governance should be open. Spam is handled at the platform/indexer layer, not the protocol layer.
 
 ---

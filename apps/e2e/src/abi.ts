@@ -31,7 +31,7 @@ export const CalldataRegistryAbi = [
     name: "getDraft",
     inputs: [{ name: "draftId", type: "uint256" }],
     outputs: [
-      { name: "org", type: "address" },
+      { name: "executor", type: "address" },
       { name: "proposer", type: "address" },
       { name: "targets", type: "address[]" },
       { name: "values", type: "uint256[]" },
@@ -40,17 +40,6 @@ export const CalldataRegistryAbi = [
       { name: "extraData", type: "bytes" },
       { name: "previousVersion", type: "uint256" },
       { name: "timestamp", type: "uint256" },
-    ],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "getOrg",
-    inputs: [{ name: "orgId", type: "address" }],
-    outputs: [
-      { name: "name", type: "string" },
-      { name: "metadataURI", type: "string" },
-      { name: "registered", type: "bool" },
     ],
     stateMutability: "view",
   },
@@ -65,7 +54,7 @@ export const CalldataRegistryAbi = [
     type: "function",
     name: "publishDraft",
     inputs: [
-      { name: "org", type: "address" },
+      { name: "executor", type: "address" },
       { name: "targets", type: "address[]" },
       { name: "values", type: "uint256[]" },
       { name: "calldatas", type: "bytes[]" },
@@ -80,7 +69,7 @@ export const CalldataRegistryAbi = [
     type: "function",
     name: "publishDraftBySig",
     inputs: [
-      { name: "org", type: "address" },
+      { name: "executor", type: "address" },
       { name: "targets", type: "address[]" },
       { name: "values", type: "uint256[]" },
       { name: "calldatas", type: "bytes[]" },
@@ -95,31 +84,11 @@ export const CalldataRegistryAbi = [
     stateMutability: "nonpayable",
   },
   {
-    type: "function",
-    name: "registerOrg",
-    inputs: [
-      { name: "name", type: "string" },
-      { name: "metadataURI", type: "string" },
-    ],
-    outputs: [],
-    stateMutability: "nonpayable",
-  },
-  {
-    type: "function",
-    name: "updateOrg",
-    inputs: [
-      { name: "name", type: "string" },
-      { name: "metadataURI", type: "string" },
-    ],
-    outputs: [],
-    stateMutability: "nonpayable",
-  },
-  {
     type: "event",
     name: "DraftPublished",
     inputs: [
       { name: "draftId", type: "uint256", indexed: true },
-      { name: "org", type: "address", indexed: true },
+      { name: "executor", type: "address", indexed: true },
       { name: "proposer", type: "address", indexed: true },
       { name: "previousVersion", type: "uint256", indexed: false },
     ],
@@ -129,26 +98,6 @@ export const CalldataRegistryAbi = [
     type: "event",
     name: "EIP712DomainChanged",
     inputs: [],
-    anonymous: false,
-  },
-  {
-    type: "event",
-    name: "OrgRegistered",
-    inputs: [
-      { name: "orgId", type: "address", indexed: true },
-      { name: "name", type: "string", indexed: false },
-      { name: "metadataURI", type: "string", indexed: false },
-    ],
-    anonymous: false,
-  },
-  {
-    type: "event",
-    name: "OrgUpdated",
-    inputs: [
-      { name: "orgId", type: "address", indexed: true },
-      { name: "name", type: "string", indexed: false },
-      { name: "metadataURI", type: "string", indexed: false },
-    ],
     anonymous: false,
   },
   {
@@ -186,17 +135,83 @@ export const CalldataRegistryAbi = [
   },
   {
     type: "error",
-    name: "OrgAlreadyRegistered",
-    inputs: [{ name: "orgId", type: "address" }],
-  },
-  {
-    type: "error",
-    name: "OrgNotRegistered",
-    inputs: [{ name: "orgId", type: "address" }],
-  },
-  {
-    type: "error",
     name: "StringTooLong",
     inputs: [{ name: "str", type: "string" }],
+  },
+] as const;
+
+export const EasAbi = [
+  {
+    type: "function",
+    name: "attest",
+    stateMutability: "payable",
+    inputs: [
+      {
+        name: "request",
+        type: "tuple",
+        components: [
+          { name: "schema", type: "bytes32" },
+          {
+            name: "data",
+            type: "tuple",
+            components: [
+              { name: "recipient", type: "address" },
+              { name: "expirationTime", type: "uint64" },
+              { name: "revocable", type: "bool" },
+              { name: "refUID", type: "bytes32" },
+              { name: "data", type: "bytes" },
+              { name: "value", type: "uint256" },
+            ],
+          },
+        ],
+      },
+    ],
+    outputs: [{ name: "", type: "bytes32" }],
+  },
+  {
+    type: "function",
+    name: "getAttestation",
+    stateMutability: "view",
+    inputs: [{ name: "uid", type: "bytes32" }],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "uid", type: "bytes32" },
+          { name: "schema", type: "bytes32" },
+          { name: "time", type: "uint64" },
+          { name: "expirationTime", type: "uint64" },
+          { name: "revocationTime", type: "uint64" },
+          { name: "refUID", type: "bytes32" },
+          { name: "recipient", type: "address" },
+          { name: "attester", type: "address" },
+          { name: "revocable", type: "bool" },
+          { name: "data", type: "bytes" },
+        ],
+      },
+    ],
+  },
+  {
+    type: "event",
+    name: "Attested",
+    inputs: [
+      { name: "recipient", type: "address", indexed: true },
+      { name: "attester", type: "address", indexed: true },
+      { name: "uid", type: "bytes32", indexed: false },
+      { name: "schemaUID", type: "bytes32", indexed: true },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "Revoked",
+    inputs: [
+      { name: "recipient", type: "address", indexed: true },
+      { name: "revoker", type: "address", indexed: true },
+      { name: "uid", type: "bytes32", indexed: false },
+      { name: "schemaUID", type: "bytes32", indexed: true },
+    ],
+    anonymous: false,
   },
 ] as const;

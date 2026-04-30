@@ -68,8 +68,8 @@ function StepIndicator({ current }: { current: number }) {
 // ── Step 1: Details ────────────────────────────────────────────────────
 
 function StepDetails({
-  org,
-  setOrg,
+  executor,
+  setExecutor,
   description,
   setDescription,
   extraData,
@@ -77,8 +77,8 @@ function StepDetails({
   previousVersion,
   setPreviousVersion,
 }: {
-  org: string;
-  setOrg: (v: string) => void;
+  executor: string;
+  setExecutor: (v: string) => void;
   description: string;
   setDescription: (v: string) => void;
   extraData: string;
@@ -90,12 +90,12 @@ function StepDetails({
     <div className="space-y-6">
       <div>
         <div className="text-xs text-white/50 uppercase tracking-wider mb-1.5">
-          Organization Address
+          Executor Address
         </div>
         <input
           type="text"
-          value={org}
-          onChange={(e) => setOrg(e.target.value)}
+          value={executor}
+          onChange={(e) => setExecutor(e.target.value)}
           placeholder="0x..."
           className="w-full bg-white/5 border border-white/10 text-white px-3 py-2 text-sm font-mono focus:border-white/30 focus:outline-none placeholder:text-white/20"
         />
@@ -175,13 +175,13 @@ function CalldataBlock({ data }: { data: string }) {
 }
 
 function StepReview({
-  org,
+  executor,
   description,
   extraData,
   previousVersion,
   actions,
 }: {
-  org: string;
+  executor: string;
   description: string;
   extraData: string;
   previousVersion: string;
@@ -195,8 +195,8 @@ function StepReview({
           Proposal Details
         </div>
         <div className="text-sm">
-          <span className="text-white/40">Organization </span>
-          <span className="font-mono text-white/70">{org || "--"}</span>
+          <span className="text-white/40">Executor </span>
+          <span className="font-mono text-white/70">{executor || "--"}</span>
         </div>
         <div className="text-sm">
           <span className="text-white/40">Description</span>
@@ -261,7 +261,7 @@ function NewDraftForm() {
 
   // Form state
   const [step, setStep] = useState(0);
-  const [org, setOrg] = useState("");
+  const [executor, setExecutor] = useState("");
   const [description, setDescription] = useState("");
   const [extraData, setExtraData] = useState("0x");
   const [previousVersion, setPreviousVersion] = useState(
@@ -302,8 +302,8 @@ function NewDraftForm() {
 
   // Validation
   const step1Valid = useMemo(() => {
-    return org.trim().length > 0 && description.trim().length > 0;
-  }, [org, description]);
+    return executor.trim().length > 0 && description.trim().length > 0;
+  }, [executor, description]);
 
   const step2Valid = useMemo(() => {
     return (
@@ -340,7 +340,7 @@ function NewDraftForm() {
       abi: calldataRegistryAbi,
       functionName: "publishDraft",
       args: [
-        org as `0x${string}`,
+        executor as `0x${string}`,
         targets,
         values,
         calldatas,
@@ -379,7 +379,7 @@ function NewDraftForm() {
       types: DRAFT_PUBLISH_TYPES,
       primaryType: "DraftPublish",
       message: {
-        org: org as `0x${string}`,
+        executor: executor as `0x${string}`,
         actionsHash,
         descriptionHash,
         extraDataHash,
@@ -412,8 +412,8 @@ function NewDraftForm() {
       {/* Step content */}
       {step === 0 && (
         <StepDetails
-          org={org}
-          setOrg={setOrg}
+          executor={executor}
+          setExecutor={setExecutor}
           description={description}
           setDescription={setDescription}
           extraData={extraData}
@@ -427,7 +427,7 @@ function NewDraftForm() {
 
       {step === 2 && (
         <StepReview
-          org={org}
+          executor={executor}
           description={description}
           extraData={extraData}
           previousVersion={previousVersion}
@@ -542,7 +542,7 @@ function NewDraftForm() {
             <pre className="font-mono text-xs text-white/50 break-all whitespace-pre-wrap bg-white/[0.03] px-3 py-2 overflow-x-auto">
               {JSON.stringify(
                 {
-                  org,
+                  executor,
                   targets: actions.map((c) => c.target),
                   values: actions.map((c) => c.value),
                   calldatas: actions.map((c) => c.calldata || "0x"),

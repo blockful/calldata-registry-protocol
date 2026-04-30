@@ -19,7 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  mockOrgs,
+  mockExecutors,
   mockProposals,
   type ProposalStatus,
 } from "@/lib/mock-proposals";
@@ -46,8 +46,11 @@ function StatusBadge({ status }: { status: ProposalStatus }) {
   );
 }
 
-function getOrgName(orgId: string) {
-  return mockOrgs.find((org) => org.id === orgId)?.name ?? orgId;
+function getExecutorLabel(executorId: string) {
+  return (
+    mockExecutors.find((executor) => executor.id === executorId)?.label ??
+    executorId
+  );
 }
 
 export default function DraftsPage() {
@@ -60,13 +63,13 @@ export default function DraftsPage() {
               <GitBranch className="size-3" />
               Proposals
             </Badge>
-            <Badge variant="outline">{mockOrgs.length} organizations</Badge>
+            <Badge variant="outline">{mockExecutors.length} executors</Badge>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
             Proposal Registry
           </h1>
           <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-            A plain list of mocked proposals grouped by organization, version
+            A plain list of mocked proposals grouped by executor, version
             history, and recorded reviews.
           </p>
         </div>
@@ -80,7 +83,7 @@ export default function DraftsPage() {
         <CardHeader>
           <CardTitle>All proposals</CardTitle>
           <CardDescription>
-            Use the app view to filter by organization and inspect the graph.
+            Use the app view to filter by executor and inspect the graph.
           </CardDescription>
           <CardAction>
             <Button
@@ -98,7 +101,7 @@ export default function DraftsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Proposal</TableHead>
-                <TableHead>Organization</TableHead>
+                <TableHead>Executor</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Versions</TableHead>
                 <TableHead>Reviews</TableHead>
@@ -119,7 +122,7 @@ export default function DraftsPage() {
                   <TableCell>
                     <span className="inline-flex items-center gap-2">
                       <Building2 className="size-4 text-muted-foreground" />
-                      {getOrgName(proposal.orgId)}
+                      {getExecutorLabel(proposal.executorId)}
                     </span>
                   </TableCell>
                   <TableCell>

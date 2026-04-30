@@ -18,6 +18,8 @@ Drafts are **versioned and forkable**. Anyone can publish a new version referenc
 
 **Gasless publishing** is supported via EIP-712 signatures (EOA and smart contract wallets via EIP-1271). Authors sign, relayers submit.
 
+**Review attestations** via [EAS](https://attest.org) let third parties publicly attest they've verified a draft's calldata, with an optional comment linking to evidence (a test suite, a simulation, a written analysis).
+
 ## Apps
 
 | App | Description |
@@ -44,10 +46,10 @@ pnpm install
 ### Run tests
 
 ```bash
-# Contract tests (28 tests)
+# Contract tests (33 tests: 22 registry + 11 resolver)
 cd apps/contracts && forge test
 
-# E2E tests — spins up Anvil, deploys, runs indexer (11 tests)
+# E2E tests — spins up Anvil, deploys, runs indexer
 cd apps/e2e && pnpm test
 ```
 
@@ -71,6 +73,7 @@ Start the indexer:
 cd apps/indexer
 PONDER_RPC_URL_31337=http://127.0.0.1:8545 \
 REGISTRY_ADDRESS=<deployed-address> \
+EAS_ADDRESS=<eas-address> \
 pnpm dev
 ```
 
@@ -79,6 +82,8 @@ Start the frontend:
 ```bash
 cd apps/web
 NEXT_PUBLIC_REGISTRY_ADDRESS=<deployed-address> \
+NEXT_PUBLIC_EAS_ADDRESS=<eas-address> \
+NEXT_PUBLIC_REVIEW_SCHEMA_UID=<schema-uid> \
 pnpm dev
 ```
 
@@ -87,7 +92,7 @@ pnpm dev
 ```solidity
 // Publish calldata for public review
 function publishDraft(
-    address org,
+    address executor,
     address[] calldata targets,
     uint256[] calldata values,
     bytes[] calldata calldatas,
@@ -98,7 +103,7 @@ function publishDraft(
 
 // Gasless publishing via EIP-712 + EIP-1271
 function publishDraftBySig(
-    address org,
+    address executor,
     address[] calldata targets,
     uint256[] calldata values,
     bytes[] calldata calldatas,
@@ -110,15 +115,17 @@ function publishDraftBySig(
     bytes calldata signature
 ) external returns (uint256 draftId);
 
-// Optional org registration
-function registerOrg(string calldata name, string calldata metadataURI) external;
-function updateOrg(string calldata name, string calldata metadataURI) external;
-
 // Views
 function getDraft(uint256 draftId) external view returns (...);
-function getOrg(address orgId) external view returns (...);
+function draftExists(uint256 draftId) external view returns (bool);
 function nonces(address proposer) external view returns (uint256);
 ```
+
+## Review Attestations (EAS)
+
+Third parties attest they've verified a draft via the [Ethereum Attestation Service](https://attest.org). A `CalldataReviewResolver` validates that the `draftId` exists before accepting the attestation.
+
+Schema: `uint256 draftId, bool approved, string comment`
 
 ## Deployment
 

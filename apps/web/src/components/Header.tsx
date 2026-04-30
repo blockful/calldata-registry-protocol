@@ -15,7 +15,7 @@ import { ConnectButton } from "./ConnectButton";
 
 const NAV_ITEMS = [
   { href: "/", label: "Review", icon: ShieldCheck },
-  { href: "/drafts", label: "Proposals", icon: ScrollText },
+  { href: "/drafts", label: "Drafts", icon: ScrollText },
 ];
 
 export function Header() {
@@ -42,8 +42,7 @@ export function Header() {
           <nav className="hidden items-center gap-1 sm:flex">
             {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
               const isActive =
-                pathname === href ||
-                (href !== "/drafts/new" && pathname.startsWith(href + "/"));
+                pathname === href || pathname.startsWith(`${href}/`);
               return (
                 <Button
                   key={href}

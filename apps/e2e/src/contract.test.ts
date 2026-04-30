@@ -39,8 +39,9 @@ describe("CalldataRegistry Contract", () => {
     anvilProcess = anvil.process;
     rpcUrl = anvil.rpcUrl;
 
-    // Deploy contract
-    contractAddress = await deployContracts(rpcUrl);
+    // Deploy contracts
+    const deploy = await deployContracts(rpcUrl);
+    contractAddress = deploy.registryAddress;
     expect(contractAddress).toMatch(/^0x[0-9a-fA-F]{40}$/);
 
     // Create clients
@@ -72,50 +73,6 @@ describe("CalldataRegistry Contract", () => {
     expect(receipt.status).toBe("success");
     return receipt;
   }
-
-  // ── Org Tests ──────────────────────────────────────────────────────────
-
-  it("should register an org", async () => {
-    const hash = await wallet0.writeContract({
-      address: contractAddress,
-      abi: CalldataRegistryAbi,
-      functionName: "registerOrg",
-      args: ["Test Org", "https://example.com/meta"],
-    });
-    await waitForTx(hash);
-
-    const [name, metadataURI, registered] = await publicClient.readContract({
-      address: contractAddress,
-      abi: CalldataRegistryAbi,
-      functionName: "getOrg",
-      args: [account0.address],
-    });
-
-    expect(name).toBe("Test Org");
-    expect(metadataURI).toBe("https://example.com/meta");
-    expect(registered).toBe(true);
-  });
-
-  it("should update an org", async () => {
-    const hash = await wallet0.writeContract({
-      address: contractAddress,
-      abi: CalldataRegistryAbi,
-      functionName: "updateOrg",
-      args: ["Updated Org", "https://example.com/updated"],
-    });
-    await waitForTx(hash);
-
-    const [name, metadataURI, registered] = await publicClient.readContract({
-      address: contractAddress,
-      abi: CalldataRegistryAbi,
-      functionName: "getOrg",
-      args: [account0.address],
-    });
-
-    expect(name).toBe("Updated Org");
-    expect(metadataURI).toBe("https://example.com/updated");
-    expect(registered).toBe(true);
-  });
 
   // ── Draft Tests ────────────────────────────────────────────────────────
 
@@ -153,7 +110,7 @@ describe("CalldataRegistry Contract", () => {
       args: [1n],
     });
 
-    expect(getAddress(draft[0])).toBe(getAddress(account0.address)); // org
+    expect(getAddress(draft[0])).toBe(getAddress(account0.address)); // executor
     expect(getAddress(draft[1])).toBe(getAddress(account0.address)); // proposer
     expect(draft[2]).toEqual(targets); // targets
     expect(draft[3]).toEqual(values); // values
@@ -267,7 +224,7 @@ describe("CalldataRegistry Contract", () => {
       domain,
       types: {
         DraftPublish: [
-          { name: "org", type: "address" },
+          { name: "executor", type: "address" },
           { name: "actionsHash", type: "bytes32" },
           { name: "descriptionHash", type: "bytes32" },
           { name: "extraDataHash", type: "bytes32" },
@@ -279,7 +236,7 @@ describe("CalldataRegistry Contract", () => {
       },
       primaryType: "DraftPublish",
       message: {
-        org: account0.address,
+        executor: account0.address,
         actionsHash,
         descriptionHash,
         extraDataHash,
@@ -318,25 +275,14 @@ describe("CalldataRegistry Contract", () => {
       args: [3n],
     });
 
-    expect(getAddress(draft[0])).toBe(getAddress(account0.address)); // org
+    expect(getAddress(draft[0])).toBe(getAddress(account0.address)); // executor
     expect(getAddress(draft[1])).toBe(getAddress(account1.address)); // proposer (signer)
     expect(draft[5]).toBe(description);
   });
 
   // ── Read-back Tests ────────────────────────────────────────────────────
 
-  it("should read back all data correctly via getDraft and getOrg", async () => {
-    // Verify org
-    const [orgName, orgMeta, orgRegistered] =
-      await publicClient.readContract({
-        address: contractAddress,
-        abi: CalldataRegistryAbi,
-        functionName: "getOrg",
-        args: [account0.address],
-      });
-    expect(orgRegistered).toBe(true);
-    expect(orgName).toBe("Updated Org"); // was updated earlier
-
+  it("should read back all data correctly via getDraft", async () => {
     // Verify draft 1 still intact
     const d1 = await publicClient.readContract({
       address: contractAddress,
