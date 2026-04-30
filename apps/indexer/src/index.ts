@@ -1,6 +1,7 @@
 import { ponder } from "ponder:registry";
 import { draft, review } from "ponder:schema";
 import { decodeAbiParameters, type Hex } from "viem";
+import { count, eq } from "ponder";
 
 const REVIEW_SCHEMA_UID = (process.env.REVIEW_SCHEMA_UID ?? "0x0000000000000000000000000000000000000000000000000000000000000000").toLowerCase() as Hex;
 
@@ -12,6 +13,12 @@ ponder.on("CalldataRegistry:DraftPublished", async ({ event, context }) => {
     args: [event.args.draftId],
   });
 
+  const [result] = await context.db
+    .select({ value: count() })
+    .from(draft)
+    .where(eq(draft.executor, event.args.executor));
+  const nonce = BigInt(result.value) + 1n;
+
   await context.db.insert(draft).values({
     id: event.args.draftId,
     executor: event.args.executor,
@@ -21,7 +28,8 @@ ponder.on("CalldataRegistry:DraftPublished", async ({ event, context }) => {
     calldatas: JSON.stringify(draftData[4]),
     description: draftData[5],
     extraData: draftData[6],
-    previousVersion: event.args.previousVersion,
+    basedOn: event.args.previousVersion,
+    executorDraftNonce: nonce,
     timestamp: draftData[8],
     blockNumber: event.block.number,
     txHash: event.transaction.hash,
