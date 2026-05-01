@@ -8,7 +8,7 @@ export const size = {
 
 export const contentType = "image/png";
 export const alt =
-  "Calldata Registry - Publish, review, and verify calldata before execution.";
+  "Calldata Registry Protocol - Publish, review, and verify calldata before execution.";
 
 export default function Image() {
   return new ImageResponse(

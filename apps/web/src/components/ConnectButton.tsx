@@ -1,7 +1,10 @@
 "use client";
 
+import { LogOut, PlugZap, Wallet } from "lucide-react";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { injected } from "wagmi/connectors";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 export function ConnectButton() {
   const { address, isConnected } = useAccount();
@@ -10,27 +13,33 @@ export function ConnectButton() {
 
   if (isConnected && address) {
     return (
-      <div className="flex items-center gap-3">
-        <span className="font-mono text-xs text-white/50">
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="font-mono">
+          <Wallet className="size-3" />
           {address.slice(0, 6)}&hellip;{address.slice(-4)}
-        </span>
-        <button
+        </Badge>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
           onClick={() => disconnect()}
-          className="border border-white/20 px-3 py-1 text-xs text-white/60 hover:border-white/40 hover:text-white"
         >
+          <LogOut className="size-4" />
           Disconnect
-        </button>
+        </Button>
       </div>
     );
   }
 
   return (
-    <button
+    <Button
+      type="button"
+      size="sm"
       onClick={() => connect({ connector: injected() })}
       disabled={isPending}
-      className="border border-white px-3 py-1 text-xs font-medium text-white hover:bg-white hover:text-black disabled:opacity-40"
     >
+      <PlugZap className="size-4" />
       {isPending ? "Connecting..." : "Connect Wallet"}
-    </button>
+    </Button>
   );
 }

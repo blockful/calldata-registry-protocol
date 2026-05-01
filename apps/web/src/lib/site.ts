@@ -1,4 +1,4 @@
-export const SITE_NAME = "Calldata Registry";
+export const SITE_NAME = "Calldata Registry Protocol";
 
 export const SITE_DESCRIPTION =
   "A public on-chain registry for publishing, reviewing, and verifying calldata drafts before execution.";

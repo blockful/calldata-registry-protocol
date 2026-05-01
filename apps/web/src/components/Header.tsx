@@ -1,49 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { GitBranch } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ConnectButton } from "./ConnectButton";
 
-const NAV_ITEMS = [
-  { href: "/", label: "Drafts" },
-  { href: "/new", label: "New Draft" },
-];
-
 export function Header() {
-  const pathname = usePathname();
-
   return (
-    <header className="border-b border-white/10">
-      <div className="mx-auto flex h-14 max-w-[1080px] items-center justify-between px-6">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-sm font-semibold tracking-tight">
-              Calldata Registry
-            </span>
-          </Link>
-
-          <nav className="hidden items-center gap-1 sm:flex">
-            {NAV_ITEMS.map(({ href, label }) => {
-              const isActive =
-                href === "/"
-                  ? pathname === "/"
-                  : pathname === href || pathname.startsWith(href + "/");
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  className={`px-3 py-1.5 text-xs transition-colors ${
-                    isActive
-                      ? "text-white"
-                      : "text-white/40 hover:text-white/70"
-                  }`}
-                >
-                  {label}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
+    <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur">
+      <div className="mx-auto flex h-14 max-w-[1440px] items-center justify-between px-4 sm:px-6 lg:px-8">
+        <Button
+          variant="ghost"
+          className="gap-2 px-2"
+          nativeButton={false}
+          render={<Link href="/" />}
+        >
+          <span className="flex size-7 items-center justify-center rounded-lg border bg-background text-foreground">
+            <GitBranch className="size-4" />
+          </span>
+          <span className="hidden text-sm font-semibold tracking-tight sm:inline">
+            Calldata Registry Protocol
+          </span>
+        </Button>
 
         <ConnectButton />
       </div>
