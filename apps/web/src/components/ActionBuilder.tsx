@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { encodeFunctionData } from "viem";
 import type { Abi, AbiFunction, AbiParameter } from "viem";
 
@@ -41,6 +41,20 @@ function parseAbiJson(raw: string): AbiFunction[] | null {
   } catch {
     return null;
   }
+}
+
+function createCardState(): ActionCardState {
+  return {
+    mode: "raw",
+    collapsed: false,
+    build: {
+      abiJson: "",
+      parsedAbi: null,
+      selectedFunction: "",
+      params: {},
+      encodeError: "",
+    },
+  };
 }
 
 function getDefaultValue(param: AbiParameter): unknown {
@@ -570,41 +584,11 @@ export function ActionBuilder({
   onChange: (actions: ActionItem[]) => void;
 }) {
   const [cardStates, setCardStates] = useState<ActionCardState[]>(() =>
-    actions.map(() => ({
-      mode: "raw" as const,
-      collapsed: false,
-      build: {
-        abiJson: "",
-        parsedAbi: null,
-        selectedFunction: "",
-        params: {},
-        encodeError: "",
-      },
-    }))
+    actions.map(() => createCardState())
   );
-
-  // Keep cardStates in sync with actions length
-  useEffect(() => {
-    if (cardStates.length < actions.length) {
-      const newStates = [...cardStates];
-      while (newStates.length < actions.length) {
-        newStates.push({
-          mode: "raw",
-          collapsed: false,
-          build: {
-            abiJson: "",
-            parsedAbi: null,
-            selectedFunction: "",
-            params: {},
-            encodeError: "",
-          },
-        });
-      }
-      setCardStates(newStates);
-    } else if (cardStates.length > actions.length) {
-      setCardStates(cardStates.slice(0, actions.length));
-    }
-  }, [actions.length, cardStates]);
+  const visibleCardStates = actions.map(
+    (_action, index) => cardStates[index] ?? createCardState()
+  );
 
   const updateAction = (index: number, action: ActionItem) => {
     const next = [...actions];
@@ -613,7 +597,7 @@ export function ActionBuilder({
   };
 
   const updateCardState = (index: number, state: ActionCardState) => {
-    const next = [...cardStates];
+    const next = [...visibleCardStates];
     next[index] = state;
     setCardStates(next);
   };
@@ -621,25 +605,12 @@ export function ActionBuilder({
   const removeAction = (index: number) => {
     if (actions.length <= 1) return;
     onChange(actions.filter((_, i) => i !== index));
-    setCardStates(cardStates.filter((_, i) => i !== index));
+    setCardStates(visibleCardStates.filter((_, i) => i !== index));
   };
 
   const addAction = () => {
     onChange([...actions, { target: "", value: "0", calldata: "0x" }]);
-    setCardStates([
-      ...cardStates,
-      {
-        mode: "raw",
-        collapsed: false,
-        build: {
-          abiJson: "",
-          parsedAbi: null,
-          selectedFunction: "",
-          params: {},
-          encodeError: "",
-        },
-      },
-    ]);
+    setCardStates([...visibleCardStates, createCardState()]);
   };
 
   return (
@@ -649,19 +620,7 @@ export function ActionBuilder({
           key={i}
           index={i}
           action={action}
-          cardState={
-            cardStates[i] ?? {
-              mode: "raw" as const,
-              collapsed: false,
-              build: {
-                abiJson: "",
-                parsedAbi: null,
-                selectedFunction: "",
-                params: {},
-                encodeError: "",
-              },
-            }
-          }
+          cardState={visibleCardStates[i]}
           onActionChange={(a) => updateAction(i, a)}
           onCardStateChange={(s) => updateCardState(i, s)}
           onRemove={() => removeAction(i)}

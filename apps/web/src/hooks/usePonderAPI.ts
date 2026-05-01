@@ -1,38 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { PONDER_API_URL } from "@/config/wagmi";
+import type { DraftDetail, DraftItem } from "@/lib/drafts";
 
-export interface DraftItem {
-  id: string;
-  executor: string;
-  proposer: string;
-  targets: string[];
-  values: string[];
-  calldatas: string[];
-  description: string;
-  extraData: string;
-  basedOn: string;
-  executorDraftNonce: string;
-  timestamp: string;
-  blockNumber: string;
-}
-
-export interface ReviewItem {
-  id: string;
-  easUid: string;
-  draftId: string;
-  attester: string;
-  approved: boolean;
-  comment: string;
-  timestamp: string;
-  blockNumber: string;
-  txHash: string;
-}
-
-export interface DraftDetail extends DraftItem {
-  reviews: ReviewItem[];
-  basedOnDrafts: DraftItem[];
-  basedOnParent: DraftItem | null;
-}
+export type { DraftDetail, DraftItem, ReviewItem } from "@/lib/drafts";
 
 export function useDrafts(limit = 50, offset = 0) {
   return useQuery<DraftItem[]>({

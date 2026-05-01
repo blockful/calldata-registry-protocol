@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useMemo, useEffect, useRef } from "react";
+import { Suspense, useState, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   useAccount,
@@ -24,7 +24,7 @@ import {
 import { REGISTRY_ADDRESS } from "@/config/wagmi";
 import { ActionBuilder } from "@/components/ActionBuilder";
 import type { ActionItem } from "@/components/ActionBuilder";
-import { useDraftDetail } from "@/hooks/usePonderAPI";
+import { useDraftDetail, type DraftDetail } from "@/hooks/usePonderAPI";
 
 // ── Step indicator ─────────────────────────────────────────────────────
 
@@ -253,7 +253,6 @@ function StepReview({
 
 function NewDraftForm() {
   const searchParams = useSearchParams();
-  const { address, isConnected, chainId } = useAccount();
 
   // Parse based-on query param: format "executor/nonce"
   const basedOnParam = searchParams.get("based-on");
@@ -262,40 +261,55 @@ function NewDraftForm() {
     : [undefined, undefined];
 
   // Fetch parent draft if based-on is provided
-  const { data: parentDraft } = useDraftDetail(
+  const { data: parentDraft, isLoading: isParentLoading } = useDraftDetail(
     basedOnExecutor ?? "",
     basedOnNonce ?? ""
   );
 
+  if (basedOnParam && isParentLoading) {
+    return (
+      <div className="max-w-[720px] mx-auto px-6 py-12">
+        <div className="border border-white/10 p-6 text-sm text-white/40">
+          Loading parent draft...
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <NewDraftFormBody
+      key={parentDraft?.id ?? basedOnParam ?? "new"}
+      parentDraft={parentDraft}
+      basedOnParam={basedOnParam}
+    />
+  );
+}
+
+function NewDraftFormBody({
+  parentDraft,
+  basedOnParam,
+}: {
+  parentDraft?: DraftDetail;
+  basedOnParam: string | null;
+}) {
+  const { address, isConnected, chainId } = useAccount();
+
   // Form state
   const [step, setStep] = useState(0);
-  const [executor, setExecutor] = useState("");
-  const [description, setDescription] = useState("");
-  const [extraData, setExtraData] = useState("0x");
-  const [basedOnDraftId, setBasedOnDraftId] = useState("0");
-  const [actions, setActions] = useState<ActionItem[]>([
-    { target: "", value: "0", calldata: "0x" },
-  ]);
-
-  const initialized = useRef(false);
-  useEffect(() => {
-    if (parentDraft && !initialized.current) {
-      initialized.current = true;
-      setBasedOnDraftId(parentDraft.id);
-      setExecutor(parentDraft.executor);
-      setDescription(parentDraft.description);
-      setExtraData(parentDraft.extraData || "0x");
-      if (parentDraft.targets && parentDraft.targets.length > 0) {
-        setActions(
-          parentDraft.targets.map((target, i) => ({
-            target,
-            value: parentDraft.values?.[i] ?? "0",
-            calldata: parentDraft.calldatas?.[i] ?? "0x",
-          }))
-        );
-      }
-    }
-  }, [parentDraft]);
+  const [executor, setExecutor] = useState(parentDraft?.executor ?? "");
+  const [description, setDescription] = useState(parentDraft?.description ?? "");
+  const [extraData, setExtraData] = useState(parentDraft?.extraData || "0x");
+  const [basedOnDraftId] = useState(parentDraft?.id ?? "0");
+  const [actions, setActions] = useState<ActionItem[]>(() =>
+    parentDraft?.targets && parentDraft.targets.length > 0
+      ? parentDraft.targets.map((target, i) => ({
+          target,
+          value: parentDraft.values?.[i] ?? "0",
+          calldata: parentDraft.calldatas?.[i] ?? "0x",
+        }))
+      : [{ target: "", value: "0", calldata: "0x" }]
+  );
+  const [gaslessDeadline, setGaslessDeadline] = useState<string | null>(null);
 
   const basedOnLabel = basedOnParam ?? null;
 
@@ -394,6 +408,7 @@ function NewDraftForm() {
       toBytes((extraData || "0x") as `0x${string}`)
     );
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
+    setGaslessDeadline(deadline.toString());
 
     signTypedData({
       domain: {
@@ -574,7 +589,7 @@ function NewDraftForm() {
                   extraData: extraData || "0x",
                   previousVersion: basedOnDraftId || "0",
                   proposer: address,
-                  deadline: String(Math.floor(Date.now() / 1000) + 3600),
+                  deadline: gaslessDeadline ?? "",
                   signature,
                 },
                 null,
