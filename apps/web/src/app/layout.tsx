@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Calldata Registry",
+  title: "Calldata Registry Protocol",
   description:
     "On-chain registry for publishing, reviewing, and verifying calldata before execution.",
 };
@@ -26,11 +26,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-    >
-      <body className="min-h-screen bg-black text-white">
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body className="min-h-screen bg-background text-foreground antialiased">
         <Providers>
           <Header />
           <main>{children}</main>
