@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -359,31 +360,18 @@ export function ProposalListPage({
 
   return (
     <div className="mx-auto grid w-full max-w-[1440px] gap-6 px-4 py-6 sm:px-6 lg:px-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <div className="mb-3 flex flex-wrap gap-2">
-            <Badge variant="secondary">
-              <GitBranch className="size-3" />
-              Calldata Registry Protocol
-            </Badge>
-            <Badge variant="outline">{mockDrafts.length} entries</Badge>
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            Calldata Registry Protocol
-          </h1>
-        </div>
-        <Button nativeButton={false} render={<Link href="/drafts/new" />}>
-          <Plus className="size-4" />
-          New draft
-        </Button>
-      </div>
-
       <Card>
         <CardHeader>
           <CardTitle>Registry entries</CardTitle>
           <CardDescription>
             Browse submitted records by author, executor, review outcome, and timestamp.
           </CardDescription>
+          <CardAction>
+            <Button nativeButton={false} render={<Link href="/drafts/new" />}>
+              <Plus className="size-4" />
+              New calldata
+            </Button>
+          </CardAction>
         </CardHeader>
         <CardContent className="space-y-4">
           <form
