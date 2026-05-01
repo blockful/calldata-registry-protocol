@@ -55,6 +55,14 @@ function shortAddress(value: string) {
   return `${value.slice(0, 8)}...${value.slice(-6)}`;
 }
 
+function draftPath(draft: Draft) {
+  return `/${encodeURIComponent(draft.executor.toLowerCase())}/draft/${encodeURIComponent(draft.id)}`;
+}
+
+function forkPath(draft: Draft) {
+  return `/new?previousVersion=${encodeURIComponent(draft.id)}`;
+}
+
 function reviewTotals(draft: Draft) {
   return draft.reviews.reduce(
     (totals, review) => ({
@@ -194,7 +202,7 @@ function HistoryGraph({
           return (
             <Link
               key={draft.id}
-              href={`/drafts/${draft.id}`}
+              href={draftPath(draft)}
               aria-current={isSelected ? "page" : undefined}
               className={cn(
                 buttonVariants({ variant: isSelected ? "default" : "outline" }),
@@ -335,7 +343,7 @@ export function ProposalDetailPage({
           </Button>
           <Button
             nativeButton={false}
-            render={<Link href={`/drafts/new?previousVersion=${selectedDraft.id}`} />}
+            render={<Link href={forkPath(selectedDraft)} />}
           >
             <GitFork className="size-4" />
             Fork

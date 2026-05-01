@@ -87,6 +87,10 @@ function shortAddress(value: string) {
   return `${value.slice(0, 8)}...${value.slice(-6)}`;
 }
 
+function forkPath(draft: Draft) {
+  return `/new?previousVersion=${encodeURIComponent(draft.id)}`;
+}
+
 function reviewTotals(draft: Draft) {
   return draft.reviews.reduce(
     (totals, review) => ({
@@ -283,9 +287,7 @@ function DraftTable({
                     size="sm"
                     nativeButton={false}
                     aria-label={`Fork draft #${draft.id}`}
-                    render={
-                      <Link href={`/drafts/new?previousVersion=${draft.id}`} />
-                    }
+                    render={<Link href={forkPath(draft)} />}
                     onClick={(event) => event.stopPropagation()}
                   >
                     <GitFork className="size-3.5" />
@@ -611,7 +613,7 @@ export function ProposalReviewWorkspace() {
             Calldata Drafts
           </h1>
         </div>
-        <Button nativeButton={false} render={<Link href="/drafts/new" />}>
+        <Button nativeButton={false} render={<Link href="/new" />}>
           <Plus className="size-4" />
           Create draft
         </Button>

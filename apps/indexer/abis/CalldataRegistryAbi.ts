@@ -6,7 +6,12 @@ export const CalldataRegistryAbi = [
       { name: "draftId", type: "uint256", indexed: true },
       { name: "executor", type: "address", indexed: true },
       { name: "proposer", type: "address", indexed: true },
-      { name: "previousVersion", type: "uint256", indexed: false }
+      { name: "targets", type: "address[]", indexed: false },
+      { name: "values", type: "uint256[]", indexed: false },
+      { name: "calldatas", type: "bytes[]", indexed: false },
+      { name: "description", type: "string", indexed: false },
+      { name: "extraData", type: "bytes", indexed: false },
+      { name: "previousVersion", type: "uint256", indexed: false },
     ]
   },
   {

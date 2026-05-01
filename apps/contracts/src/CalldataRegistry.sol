@@ -174,6 +174,6 @@ contract CalldataRegistry is ICalldataRegistry, EIP712, Nonces {
         d.previousVersion = previousVersion;
         d.timestamp = block.timestamp;
 
-        emit DraftPublished(draftId, executor, proposer, previousVersion);
+        emit DraftPublished(draftId, executor, proposer, targets, values, calldatas, description, extraData, previousVersion);
     }
 }

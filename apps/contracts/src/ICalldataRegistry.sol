@@ -8,6 +8,11 @@ interface ICalldataRegistry {
         uint256 indexed draftId,
         address indexed executor,
         address indexed proposer,
+        address[] targets,
+        uint256[] values,
+        bytes[] calldatas,
+        string description,
+        bytes extraData,
         uint256 previousVersion
     );
 

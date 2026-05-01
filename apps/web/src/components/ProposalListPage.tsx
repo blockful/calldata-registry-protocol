@@ -113,6 +113,14 @@ function shortAddress(value: string) {
   return `${value.slice(0, 8)}...${value.slice(-6)}`;
 }
 
+function draftPath(draft: Draft) {
+  return `/${encodeURIComponent(draft.executor.toLowerCase())}/draft/${encodeURIComponent(draft.id)}`;
+}
+
+function forkPath(draft: Draft) {
+  return `/new?previousVersion=${encodeURIComponent(draft.id)}`;
+}
+
 function reviewTotals(draft: Draft) {
   return draft.reviews.reduce(
     (totals, review) => ({
@@ -367,7 +375,7 @@ export function ProposalListPage({
             Browse submitted records by author, executor, review outcome, and timestamp.
           </CardDescription>
           <CardAction>
-            <Button nativeButton={false} render={<Link href="/drafts/new" />}>
+            <Button nativeButton={false} render={<Link href="/new" />}>
               <Plus className="size-4" />
               New calldata
             </Button>
@@ -510,9 +518,7 @@ export function ProposalListPage({
                           size="sm"
                           nativeButton={false}
                           render={
-                            <Link
-                              href={`/drafts/new?previousVersion=${entry.id}`}
-                            />
+                            <Link href={forkPath(entry)} />
                           }
                         >
                           <GitFork className="size-3.5" />
@@ -522,7 +528,7 @@ export function ProposalListPage({
                           variant="outline"
                           size="sm"
                           nativeButton={false}
-                          render={<Link href={`/drafts/${entry.id}`} />}
+                          render={<Link href={draftPath(entry)} />}
                         >
                           <ArrowUpRight className="size-3.5" />
                           View
