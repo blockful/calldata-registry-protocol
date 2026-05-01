@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useDecodedActions } from "@/hooks/useCalldataDecoder";
 import { cn } from "@/lib/utils";
@@ -173,7 +174,7 @@ function HistoryGraph({
 
   return (
     <div className="overflow-x-auto rounded-lg border">
-      <div className="relative h-[320px] min-w-[720px] bg-card">
+      <div className="relative h-[180px] min-w-[520px] bg-card">
         <svg
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 size-full"
@@ -213,7 +214,7 @@ function HistoryGraph({
               aria-current={isSelected ? "page" : undefined}
               className={cn(
                 buttonVariants({ variant: isSelected ? "default" : "outline" }),
-                "absolute z-10 h-16 w-40 -translate-x-1/2 -translate-y-1/2 flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left",
+                "absolute z-10 h-12 w-32 -translate-x-1/2 -translate-y-1/2 flex-col items-start gap-0.5 rounded-lg px-2.5 py-1.5 text-left",
                 !isSelected && "bg-background"
               )}
               style={{ left: `${draft.x}%`, top: `${draft.y}%` }}
@@ -224,9 +225,6 @@ function HistoryGraph({
               </span>
               <span className="font-mono text-[0.68rem] opacity-75">
                 {shortAddress(draft.proposer)}
-              </span>
-              <span className="text-[0.68rem] opacity-75">
-                {draft.timestamp}
               </span>
             </Link>
           );
@@ -572,14 +570,11 @@ export function ProposalDetailPage({
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2">
             <GitBranch className="size-4" />
-            Graph
+            Lineage
           </CardTitle>
-          <CardDescription>
-            Versions linked through previousVersion.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <HistoryGraph drafts={draftFamily} selectedDraft={selectedDraft} />
@@ -607,35 +602,31 @@ export function ProposalDetailPage({
             Calls
           </CardTitle>
           <CardDescription>
-            Review the full calls array and edit target, value, or encoded data locally.
+            Decode calls first; switch to raw calldata when you need the exact
+            payload.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <CalldataCallBuilder
-            actions={selectedDraft.actions}
-            onChange={updateSelectedActions}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Code2 className="size-4" />
-            Call summary
-          </CardTitle>
-          <CardDescription>
-            Human-readable view of the calls above when the calldata can be
-            decoded.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DecodedCallsPanel
-            actions={selectedDraft.actions}
-            decodedActions={decodedActions}
-            isLoading={isDecoding}
-            isError={isDecodeError}
-          />
+          <Tabs defaultValue="decoded" className="gap-4">
+            <TabsList>
+              <TabsTrigger value="decoded">Decoded</TabsTrigger>
+              <TabsTrigger value="raw">Raw</TabsTrigger>
+            </TabsList>
+            <TabsContent value="decoded">
+              <DecodedCallsPanel
+                actions={selectedDraft.actions}
+                decodedActions={decodedActions}
+                isLoading={isDecoding}
+                isError={isDecodeError}
+              />
+            </TabsContent>
+            <TabsContent value="raw">
+              <CalldataCallBuilder
+                actions={selectedDraft.actions}
+                onChange={updateSelectedActions}
+              />
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 
