@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useAccount } from "wagmi";
 import {
+  AlertCircle,
   ArrowLeft,
   CheckCircle2,
   Code2,
@@ -26,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { useDecodedActions } from "@/hooks/useCalldataDecoder";
 import { cn } from "@/lib/utils";
 import {
   mockDrafts,
@@ -33,6 +36,12 @@ import {
   type DraftReview,
   type ReviewDecision,
 } from "@/lib/mock-proposals";
+import type {
+  DecodedAction,
+  DecodedCall,
+  DecodedParam,
+  JsonValue,
+} from "@/lib/calldataDecoder";
 
 const decisionClassName: Record<ReviewDecision, string> = {
   approved: "border-foreground/30 bg-foreground/5 text-foreground",
@@ -53,6 +62,12 @@ function DecisionBadge({ decision }: { decision: ReviewDecision }) {
 function shortAddress(value: string) {
   if (value.length <= 18) return value;
   return `${value.slice(0, 8)}...${value.slice(-6)}`;
+}
+
+function selectorFromCalldata(calldata: string) {
+  return calldata.startsWith("0x") && calldata.length >= 10
+    ? calldata.slice(0, 10)
+    : "0x";
 }
 
 function draftPath(draft: Draft) {
@@ -256,11 +271,202 @@ function ReviewsList({ reviews }: { reviews: DraftReview[] }) {
   );
 }
 
+function formatJsonValue(value: JsonValue): string {
+  if (value === null) return "null";
+  if (Array.isArray(value) || typeof value === "object") {
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
+
+function DecodedParamRow({
+  param,
+  depth = 0,
+}: {
+  param: DecodedParam;
+  depth?: number;
+}) {
+  const hasChildren = param.children && param.children.length > 0;
+
+  return (
+    <div className="border-l pl-3" style={{ marginLeft: `${depth * 12}px` }}>
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <span className="font-mono text-xs text-muted-foreground">
+          {param.type}
+        </span>
+        <span className="text-sm">{param.name || "(unnamed)"}</span>
+        {!hasChildren ? (
+          <span className="break-all font-mono text-xs text-muted-foreground">
+            {formatJsonValue(param.value)}
+          </span>
+        ) : null}
+      </div>
+      {hasChildren ? (
+        <div className="mt-2 grid gap-2">
+          {param.children!.map((child, index) => (
+            <DecodedParamRow
+              key={`${child.name}-${index}`}
+              param={child}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      ) : null}
+      {param.decodedBytes ? (
+        <div className="mt-3 rounded-lg border bg-muted p-3">
+          <DecodedCallBlock call={param.decodedBytes} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function DecodedCallBlock({ call }: { call: DecodedCall }) {
+  return (
+    <div className="grid gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="secondary" className="font-mono">
+          {call.signature}
+        </Badge>
+        <Badge variant="outline">{call.source}</Badge>
+        <Badge variant="outline">{call.confidence}</Badge>
+      </div>
+      {call.params.length > 0 ? (
+        <div className="grid gap-2">
+          <span className="text-xs font-medium text-muted-foreground">
+            Parameters
+          </span>
+          {call.params.map((param, index) => (
+            <DecodedParamRow
+              key={`${param.name}-${index}`}
+              param={param}
+            />
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">No parameters.</p>
+      )}
+    </div>
+  );
+}
+
+function DecodedActionState({
+  action,
+  isLoading,
+  isError,
+}: {
+  action: DecodedAction | undefined;
+  isLoading: boolean;
+  isError: boolean;
+}) {
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">Decoding calldata...</p>;
+  }
+
+  if (isError) {
+    return (
+      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        <AlertCircle className="size-4" />
+        Decoder unavailable.
+      </p>
+    );
+  }
+
+  if (!action) {
+    return <p className="text-sm text-muted-foreground">No decoder result.</p>;
+  }
+
+  if ((action.status === "decoded" || action.status === "empty") && action.decoded) {
+    return <DecodedCallBlock call={action.decoded} />;
+  }
+
+  if (action.status === "ambiguous") {
+    return (
+      <div className="grid gap-2">
+        <p className="text-sm text-muted-foreground">
+          Multiple selector signatures match this calldata.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {(action.candidates ?? []).map((candidate) => (
+            <Badge key={candidate} variant="outline" className="font-mono">
+              {candidate}
+            </Badge>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-2">
+      <p className="text-sm text-muted-foreground">
+        {action.error ?? "No decoder match found."}
+      </p>
+      {action.candidates && action.candidates.length > 0 ? (
+        <p className="break-all font-mono text-xs text-muted-foreground">
+          {action.candidates.join(", ")}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function DecodedCallsPanel({
+  actions,
+  decodedActions,
+  isLoading,
+  isError,
+}: {
+  actions: Draft["actions"];
+  decodedActions: DecodedAction[] | undefined;
+  isLoading: boolean;
+  isError: boolean;
+}) {
+  return (
+    <div className="grid gap-3">
+      {actions.map((action, index) => (
+        <div key={action.id} className="grid gap-3 rounded-lg border p-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary" className="font-mono">
+                  Call {String(index + 1).padStart(2, "0")}
+                </Badge>
+                <Badge variant="outline" className="font-mono">
+                  {selectorFromCalldata(action.calldata)}
+                </Badge>
+                {decodedActions?.[index] ? (
+                  <Badge variant="outline">
+                    {decodedActions[index].status}
+                  </Badge>
+                ) : null}
+              </div>
+              <p className="mt-2 break-all font-mono text-xs text-muted-foreground">
+                {action.target}
+              </p>
+            </div>
+            <span className="font-mono text-xs text-muted-foreground">
+              value {action.value || "0"}
+            </span>
+          </div>
+          <Separator />
+          <DecodedActionState
+            action={decodedActions?.[index]}
+            isLoading={isLoading}
+            isError={isError}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ProposalDetailPage({
   initialDraftId,
 }: {
   initialDraftId: string;
 }) {
+  const { chainId } = useAccount();
   const initialDraft =
     mockDrafts.find((draft) => draft.id === initialDraftId) ?? mockDrafts[0];
   const [drafts, setDrafts] = useState<Draft[]>(mockDrafts);
@@ -273,6 +479,24 @@ export function ProposalDetailPage({
     () => getDraftFamily(drafts, selectedDraft),
     [drafts, selectedDraft]
   );
+  const decoderActions = useMemo(
+    () =>
+      selectedDraft.actions.map(({ target, value, calldata }) => ({
+        target,
+        value,
+        calldata,
+      })),
+    [selectedDraft.actions]
+  );
+  const {
+    data: decodedActions,
+    isLoading: isDecoding,
+    isError: isDecodeError,
+  } = useDecodedActions({
+    actions: decoderActions,
+    extraData: selectedDraft.extraData,
+    chainId,
+  });
   const totals = reviewTotals(selectedDraft);
 
   function updateSelectedActions(nextActions: Draft["actions"]) {
@@ -394,6 +618,27 @@ export function ProposalDetailPage({
           <CalldataCallBuilder
             actions={selectedDraft.actions}
             onChange={updateSelectedActions}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Code2 className="size-4" />
+            Decoded calldata
+          </CardTitle>
+          <CardDescription>
+            Verified ABIs are preferred when available; selector matches remain
+            visible when decoding is ambiguous.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DecodedCallsPanel
+            actions={selectedDraft.actions}
+            decodedActions={decodedActions}
+            isLoading={isDecoding}
+            isError={isDecodeError}
           />
         </CardContent>
       </Card>
