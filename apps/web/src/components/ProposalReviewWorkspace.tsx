@@ -621,7 +621,7 @@ export function ProposalReviewWorkspace() {
         <CardHeader>
           <CardTitle>All drafts</CardTitle>
           <CardDescription>
-            Draft records from the mocked registry state.
+            Draft records from the registry state.
           </CardDescription>
           <CardAction>
             <div className="relative w-full min-w-[220px] sm:w-[320px]">

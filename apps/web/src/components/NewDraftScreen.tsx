@@ -121,7 +121,7 @@ export function NewDraftScreen({
         </div>
         <Button variant="outline" nativeButton={false} render={<Link href="/" />}>
           <ArrowLeft className="size-4" />
-          Registry
+          Calldata Registry Protocol
         </Button>
       </div>
 

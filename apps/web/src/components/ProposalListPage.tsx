@@ -364,12 +364,12 @@ export function ProposalListPage({
           <div className="mb-3 flex flex-wrap gap-2">
             <Badge variant="secondary">
               <GitBranch className="size-3" />
-              Registry
+              Calldata Registry Protocol
             </Badge>
             <Badge variant="outline">{mockDrafts.length} entries</Badge>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            Registry
+            Calldata Registry Protocol
           </h1>
         </div>
         <Button nativeButton={false} render={<Link href="/drafts/new" />}>
@@ -380,7 +380,7 @@ export function ProposalListPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Entries</CardTitle>
+          <CardTitle>Registry entries</CardTitle>
           <CardDescription>
             Browse submitted records by author, executor, review outcome, and timestamp.
           </CardDescription>

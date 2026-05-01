@@ -15,9 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Registry Review Desk",
+  title: "Calldata Registry Protocol",
   description:
-    "On-chain registry for publishing, reviewing, and verifying execution data before execution.",
+    "On-chain registry for publishing, reviewing, and verifying calldata before execution.",
 };
 
 export default function RootLayout({

@@ -331,7 +331,7 @@ export function ProposalDetailPage({
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" nativeButton={false} render={<Link href="/" />}>
             <ArrowLeft className="size-4" />
-            Registry
+            Calldata Registry Protocol
           </Button>
           <Button
             nativeButton={false}
