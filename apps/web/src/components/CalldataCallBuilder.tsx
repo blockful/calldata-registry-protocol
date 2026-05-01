@@ -457,7 +457,7 @@ function CallEditor({
       : "";
   const calldataWarning =
     action.calldata.trim() && !isHexCalldata(action.calldata)
-      ? "Calldata must be 0x-prefixed hex with full bytes."
+      ? "Data must be 0x-prefixed hex with full bytes."
       : "";
 
   function updateBuildState(nextState: CallBuildState) {
@@ -608,7 +608,7 @@ function CallEditor({
             <Braces className="size-4" />
             ABI
           </TabsTrigger>
-          <TabsTrigger value="raw">Raw calldata</TabsTrigger>
+          <TabsTrigger value="raw">Raw data</TabsTrigger>
         </TabsList>
 
         <TabsContent value="abi" className="grid gap-4 pt-2">
@@ -673,7 +673,7 @@ function CallEditor({
         </TabsContent>
 
         <TabsContent value="raw" className="grid gap-2 pt-2">
-          <Label htmlFor={`${action.id}-calldata`}>Calldata</Label>
+          <Label htmlFor={`${action.id}-calldata`}>Encoded data</Label>
           <Textarea
             id={`${action.id}-calldata`}
             value={action.calldata}
@@ -781,8 +781,8 @@ export function CalldataCallBuilder({
             <Badge variant="outline">{validCallCount} valid</Badge>
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            Each calldata call has its own target, value, and calldata. Build
-            from an ABI when possible, or paste raw calldata.
+            Each call has its own target, value, and encoded data. Build from an
+            ABI when possible, or paste raw data.
           </p>
         </div>
         <Button type="button" variant="outline" onClick={addCall}>

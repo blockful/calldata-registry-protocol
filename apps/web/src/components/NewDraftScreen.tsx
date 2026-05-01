@@ -115,13 +115,13 @@ export function NewDraftScreen({
           </div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
             {previousVersion
-              ? `Fork calldata #${previousVersion}`
-              : "Create calldata"}
+              ? `Fork #${previousVersion}`
+              : "Create draft"}
           </h1>
         </div>
         <Button variant="outline" nativeButton={false} render={<Link href="/" />}>
           <ArrowLeft className="size-4" />
-          Calldata
+          Registry
         </Button>
       </div>
 
@@ -129,7 +129,7 @@ export function NewDraftScreen({
         <main className="grid min-w-0 gap-6 content-start">
           <Card>
             <CardHeader>
-              <CardTitle>Calldata details</CardTitle>
+              <CardTitle>Draft details</CardTitle>
               <CardDescription>
                 Fields map to `publishDraft` inputs.
               </CardDescription>
@@ -197,9 +197,9 @@ export function NewDraftScreen({
 
           <Card>
             <CardHeader>
-              <CardTitle>Calldata calls</CardTitle>
+              <CardTitle>Calls</CardTitle>
               <CardDescription>
-                Add one or more calls, build calldata from an ABI, or paste raw calldata.
+                Add one or more calls, build from an ABI, or paste raw encoded data.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -219,9 +219,9 @@ export function NewDraftScreen({
         <aside className="grid min-w-0 gap-6 content-start">
           <Card>
             <CardHeader>
-              <CardTitle>Calldata preview</CardTitle>
+              <CardTitle>Preview</CardTitle>
               <CardDescription className="font-mono">
-                Calldata #{draftId}
+                #{draftId}
               </CardDescription>
               <CardAction>
                 {created ? (
@@ -283,7 +283,7 @@ export function NewDraftScreen({
 
               <Button type="button" onClick={() => setCreated(true)} disabled={!canCreate}>
                 <Plus className="size-4" />
-                {previousVersion ? "Create fork" : "Create calldata"}
+                {previousVersion ? "Create fork" : "Create draft"}
               </Button>
             </CardContent>
           </Card>
@@ -291,9 +291,9 @@ export function NewDraftScreen({
           {parentDraft ? (
             <Card>
               <CardHeader>
-                <CardTitle>Parent calldata</CardTitle>
+                <CardTitle>Parent</CardTitle>
                 <CardDescription className="font-mono">
-                  Calldata #{parentDraft.id}
+                  #{parentDraft.id}
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 text-sm">

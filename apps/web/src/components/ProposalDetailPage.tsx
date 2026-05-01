@@ -205,7 +205,7 @@ function HistoryGraph({
             >
               <span className="flex items-center gap-1 text-xs">
                 <GitBranch className="size-3" />
-                Calldata #{draft.id}
+                #{draft.id}
               </span>
               <span className="font-mono text-[0.68rem] opacity-75">
                 {shortAddress(draft.proposer)}
@@ -225,7 +225,7 @@ function ReviewsList({ reviews }: { reviews: DraftReview[] }) {
   if (reviews.length === 0) {
     return (
       <div className="rounded-lg border bg-card p-3 text-sm text-muted-foreground">
-        No reviews recorded for this calldata.
+        No reviews recorded for this record.
       </div>
     );
   }
@@ -331,7 +331,7 @@ export function ProposalDetailPage({
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" nativeButton={false} render={<Link href="/" />}>
             <ArrowLeft className="size-4" />
-            Calldata
+            Registry
           </Button>
           <Button
             nativeButton={false}
@@ -350,7 +350,7 @@ export function ProposalDetailPage({
             Graph
           </CardTitle>
           <CardDescription>
-            Calldata versions linked through previousVersion.
+            Versions linked through previousVersion.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -361,7 +361,7 @@ export function ProposalDetailPage({
       <Card>
         <CardHeader>
           <CardTitle>Description</CardTitle>
-          <CardDescription>Calldata description from the mocked record.</CardDescription>
+          <CardDescription>Published description.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="rounded-lg border bg-card p-4">
@@ -376,10 +376,10 @@ export function ProposalDetailPage({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Code2 className="size-4" />
-            Calldata
+            Calls
           </CardTitle>
           <CardDescription>
-            Review the full calls array and edit target, value, or calldata locally.
+            Review the full calls array and edit target, value, or encoded data locally.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -397,7 +397,7 @@ export function ProposalDetailPage({
             Reviews
           </CardTitle>
           <CardDescription>
-            Review records and local approve or reject action for this calldata.
+            Review records and local approve or reject action.
           </CardDescription>
           <CardAction>
             <div className="flex flex-wrap gap-1.5">
@@ -415,7 +415,7 @@ export function ProposalDetailPage({
             <div className="grid gap-1">
               <h3 className="text-sm font-medium">Submit review</h3>
               <p className="text-sm text-muted-foreground">
-                Approve or reject the selected calldata.
+                Approve or reject the selected record.
               </p>
             </div>
             <Separator />

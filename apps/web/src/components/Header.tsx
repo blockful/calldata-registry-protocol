@@ -19,7 +19,7 @@ export function Header() {
             <GitBranch className="size-4" />
           </span>
           <span className="hidden text-sm font-semibold tracking-tight sm:inline">
-            Calldata Registry
+            Registry
           </span>
         </Button>
 

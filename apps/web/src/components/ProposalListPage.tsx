@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -18,7 +18,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -36,21 +35,44 @@ import {
 import { cn } from "@/lib/utils";
 import { mockDrafts, type Draft } from "@/lib/mock-proposals";
 
-type SortKey = "id" | "author" | "executor" | "timestamp" | "reviews";
+type SortKey = "id" | "timestamp";
 type SortDirection = "asc" | "desc";
+type ReviewFilter = "all" | "approved" | "rejected" | "unreviewed";
 
 type SortState = {
   key: SortKey;
   direction: SortDirection;
 };
 
-const sortKeys: SortKey[] = [
-  "id",
-  "author",
-  "executor",
-  "timestamp",
-  "reviews",
+type ListParams = {
+  q?: string;
+  author?: string;
+  executor?: string;
+  review?: string;
+  sortKey?: string;
+  sortDirection?: string;
+  page?: string;
+  pageSize?: string;
+};
+
+type NormalizedParams = {
+  query: string;
+  author: string;
+  executor: string;
+  review: ReviewFilter;
+  sort: SortState;
+  page: number;
+  pageSize: number;
+};
+
+const sortKeys: SortKey[] = ["id", "timestamp"];
+const reviewFilters: ReviewFilter[] = [
+  "all",
+  "approved",
+  "rejected",
+  "unreviewed",
 ];
+const pageSizeOptions = [10, 25, 50];
 const defaultSort: SortState = {
   key: "timestamp",
   direction: "desc",
@@ -60,16 +82,28 @@ function isSortKey(value: string | undefined): value is SortKey {
   return sortKeys.includes(value as SortKey);
 }
 
-function normalizeSort(
-  sortKey: string | undefined,
-  sortDirection: string | undefined
-): SortState {
+function isReviewFilter(value: string | undefined): value is ReviewFilter {
+  return reviewFilters.includes(value as ReviewFilter);
+}
+
+function normalizeParams(params: ListParams): NormalizedParams {
+  const pageSizeValue = Number(params.pageSize);
+  const pageValue = Number(params.page);
+
   return {
-    key: isSortKey(sortKey) ? sortKey : defaultSort.key,
-    direction:
-      sortDirection === "asc" || sortDirection === "desc"
-        ? sortDirection
-        : defaultSort.direction,
+    query: params.q?.trim() ?? "",
+    author: params.author?.trim() ?? "",
+    executor: params.executor?.trim() ?? "",
+    review: isReviewFilter(params.review) ? params.review : "all",
+    sort: {
+      key: isSortKey(params.sortKey) ? params.sortKey : defaultSort.key,
+      direction:
+        params.sortDirection === "asc" || params.sortDirection === "desc"
+          ? params.sortDirection
+          : defaultSort.direction,
+    },
+    page: Number.isFinite(pageValue) && pageValue > 0 ? Math.floor(pageValue) : 1,
+    pageSize: pageSizeOptions.includes(pageSizeValue) ? pageSizeValue : 10,
   };
 }
 
@@ -128,37 +162,39 @@ function compareDrafts(first: Draft, second: Draft, sort: SortState) {
           : first.id.localeCompare(second.id);
       break;
     }
-    case "author":
-      result = first.proposer.localeCompare(second.proposer);
-      break;
-    case "executor":
-      result = first.executor.localeCompare(second.executor);
-      break;
     case "timestamp":
       result = getTimestampValue(first) - getTimestampValue(second);
       break;
-    case "reviews": {
-      const firstTotals = reviewTotals(first);
-      const secondTotals = reviewTotals(second);
-      result =
-        firstTotals.approved - secondTotals.approved ||
-        firstTotals.rejected - secondTotals.rejected ||
-        first.reviews.length - second.reviews.length;
-      break;
-    }
   }
 
   return result * multiplier;
+}
+
+function matchesReviewFilter(draft: Draft, review: ReviewFilter) {
+  const totals = reviewTotals(draft);
+
+  switch (review) {
+    case "approved":
+      return totals.approved > 0;
+    case "rejected":
+      return totals.rejected > 0;
+    case "unreviewed":
+      return draft.reviews.length === 0;
+    case "all":
+      return true;
+  }
 }
 
 function SortableHead({
   label,
   sortKey,
   sort,
+  getHref,
 }: {
   label: string;
   sortKey: SortKey;
   sort: SortState;
+  getHref: (updates: Partial<ListParams>) => string;
 }) {
   const isActive = sort.key === sortKey;
   const Icon = !isActive
@@ -180,7 +216,11 @@ function SortableHead({
       }
     >
       <Link
-        href={`/?sort=${sortKey}&direction=${nextDirection}`}
+        href={getHref({
+          sortKey,
+          sortDirection: nextDirection,
+          page: "1",
+        })}
         className={cn(
           buttonVariants({ variant: "ghost", size: "sm" }),
           "-ml-2 h-7 px-2 text-xs",
@@ -194,41 +234,128 @@ function SortableHead({
   );
 }
 
+function getReviewFilterLabel(review: ReviewFilter) {
+  switch (review) {
+    case "approved":
+      return "Approved";
+    case "rejected":
+      return "Rejected";
+    case "unreviewed":
+      return "No reviews";
+    case "all":
+      return "All";
+  }
+}
+
 export function ProposalListPage({
+  q,
+  author,
+  executor,
+  review,
   sortKey,
   sortDirection,
+  page,
+  pageSize,
 }: {
+  q?: string;
+  author?: string;
+  executor?: string;
+  review?: string;
   sortKey?: string;
   sortDirection?: string;
+  page?: string;
+  pageSize?: string;
 }) {
-  const [query, setQuery] = useState("");
-  const sort = useMemo(
-    () => normalizeSort(sortKey, sortDirection),
-    [sortKey, sortDirection]
+  const params = useMemo(
+    () =>
+      normalizeParams({
+        q,
+        author,
+        executor,
+        review,
+        sortKey,
+        sortDirection,
+        page,
+        pageSize,
+      }),
+    [q, author, executor, review, sortKey, sortDirection, page, pageSize]
   );
 
-  const calldatas = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
+  function getHref(updates: Partial<ListParams>) {
+    const next = new URLSearchParams();
+    const values: ListParams = {
+      q: params.query,
+      author: params.author,
+      executor: params.executor,
+      review: params.review === "all" ? undefined : params.review,
+      sortKey: params.sort.key,
+      sortDirection: params.sort.direction,
+      page: String(params.page),
+      pageSize: String(params.pageSize),
+      ...updates,
+    };
+
+    for (const [key, value] of Object.entries(values)) {
+      if (!value || (key === "page" && value === "1")) continue;
+      if (key === "pageSize" && value === "10") continue;
+      if (key === "sortKey" && value === defaultSort.key) continue;
+      if (key === "sortDirection" && value === defaultSort.direction) continue;
+      next.set(key === "sortKey" ? "sort" : key === "sortDirection" ? "direction" : key, value);
+    }
+
+    const queryString = next.toString();
+    return queryString ? `/?${queryString}` : "/";
+  }
+
+  const filteredEntries = useMemo(() => {
+    const normalizedQuery = params.query.toLowerCase();
+    const normalizedAuthor = params.author.toLowerCase();
+    const normalizedExecutor = params.executor.toLowerCase();
 
     const filtered = !normalizedQuery
       ? mockDrafts
-      : mockDrafts.filter((calldata) =>
+      : mockDrafts.filter((entry) =>
           [
-            calldata.id,
-            calldata.executor,
-            calldata.proposer,
-            calldata.description,
-            calldata.previousVersion ?? "",
+            entry.id,
+            entry.executor,
+            entry.proposer,
+            entry.description,
+            entry.previousVersion ?? "",
           ]
             .join(" ")
             .toLowerCase()
             .includes(normalizedQuery)
         );
 
-    return [...filtered].sort((first, second) =>
-      compareDrafts(first, second, sort)
-    );
-  }, [query, sort]);
+    return filtered
+      .filter((entry) =>
+        normalizedAuthor
+          ? entry.proposer.toLowerCase().includes(normalizedAuthor)
+          : true
+      )
+      .filter((entry) =>
+        normalizedExecutor
+          ? entry.executor.toLowerCase().includes(normalizedExecutor)
+          : true
+      )
+      .filter((entry) => matchesReviewFilter(entry, params.review))
+      .sort((first, second) => compareDrafts(first, second, params.sort));
+  }, [params]);
+
+  const pageCount = Math.max(1, Math.ceil(filteredEntries.length / params.pageSize));
+  const currentPage = Math.min(params.page, pageCount);
+  const startIndex = (currentPage - 1) * params.pageSize;
+  const visibleEntries = filteredEntries.slice(
+    startIndex,
+    startIndex + params.pageSize
+  );
+  const firstVisible = filteredEntries.length === 0 ? 0 : startIndex + 1;
+  const lastVisible = Math.min(startIndex + params.pageSize, filteredEntries.length);
+  const hasFilters =
+    params.query.length > 0 ||
+    params.author.length > 0 ||
+    params.executor.length > 0 ||
+    params.review !== "all";
 
   return (
     <div className="mx-auto grid w-full max-w-[1440px] gap-6 px-4 py-6 sm:px-6 lg:px-8">
@@ -237,103 +364,156 @@ export function ProposalListPage({
           <div className="mb-3 flex flex-wrap gap-2">
             <Badge variant="secondary">
               <GitBranch className="size-3" />
-              Calldata
+              Registry
             </Badge>
-            <Badge variant="outline">{mockDrafts.length} total</Badge>
+            <Badge variant="outline">{mockDrafts.length} entries</Badge>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            Calldata
+            Registry
           </h1>
         </div>
         <Button nativeButton={false} render={<Link href="/drafts/new" />}>
           <Plus className="size-4" />
-          Create calldata
+          New draft
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>All calldata</CardTitle>
+          <CardTitle>Entries</CardTitle>
           <CardDescription>
-            Mocked calldata records by author, executor, timestamp, and reviews.
+            Browse submitted records by author, executor, review outcome, and timestamp.
           </CardDescription>
-          <CardAction>
-            <div className="relative w-full min-w-[220px] sm:w-[320px]">
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <form
+            action="/"
+            className="grid gap-3 lg:grid-cols-[minmax(240px,1fr)_minmax(180px,240px)_minmax(180px,240px)_auto]"
+          >
+            <input type="hidden" name="sort" value={params.sort.key} />
+            <input type="hidden" name="direction" value={params.sort.direction} />
+            <input type="hidden" name="pageSize" value={params.pageSize} />
+            <input type="hidden" name="page" value="1" />
+            {params.review !== "all" ? (
+              <input type="hidden" name="review" value={params.review} />
+            ) : null}
+            <div className="relative min-w-0">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                name="q"
+                defaultValue={params.query}
                 className="pl-8"
-                placeholder="Calldata, author, executor"
+                placeholder="Search ID, author, executor, description"
               />
             </div>
-          </CardAction>
-        </CardHeader>
-        <CardContent>
+            <Input
+              name="author"
+              defaultValue={params.author}
+              className="font-mono"
+              placeholder="Author"
+            />
+            <Input
+              name="executor"
+              defaultValue={params.executor}
+              className="font-mono"
+              placeholder="Executor"
+            />
+            <div className="flex gap-2">
+              <Button type="submit" variant="outline">
+                Apply
+              </Button>
+              {hasFilters ? (
+                <Button
+                  variant="ghost"
+                  nativeButton={false}
+                  render={<Link href={getHref({ q: "", author: "", executor: "", review: "", page: "1" })} />}
+                >
+                  Clear
+                </Button>
+              ) : null}
+            </div>
+          </form>
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap gap-2">
+              {reviewFilters.map((filter) => (
+                <Button
+                  key={filter}
+                  size="sm"
+                  variant={params.review === filter ? "default" : "outline"}
+                  nativeButton={false}
+                  render={
+                    <Link
+                      href={getHref({
+                        review: filter === "all" ? "" : filter,
+                        page: "1",
+                      })}
+                    />
+                  }
+                >
+                  {getReviewFilterLabel(filter)}
+                </Button>
+              ))}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Showing {firstVisible}-{lastVisible} of {filteredEntries.length}
+            </div>
+          </div>
+
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <SortableHead
-                    label="Calldata"
+                    label="Entry"
                     sortKey="id"
-                    sort={sort}
+                    sort={params.sort}
+                    getHref={getHref}
                   />
+                  <TableHead>Author</TableHead>
+                  <TableHead>Executor</TableHead>
                   <SortableHead
-                    label="Author"
-                    sortKey="author"
-                    sort={sort}
-                  />
-                  <SortableHead
-                    label="Executor"
-                    sortKey="executor"
-                    sort={sort}
-                  />
-                  <SortableHead
-                    label="Timestamp"
+                    label="Updated"
                     sortKey="timestamp"
-                    sort={sort}
+                    sort={params.sort}
+                    getHref={getHref}
                   />
-                  <SortableHead
-                    label="Reviews"
-                    sortKey="reviews"
-                    sort={sort}
-                  />
+                  <TableHead>Reviews</TableHead>
                   <TableHead className="w-[180px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {calldatas.map((calldata) => (
-                  <TableRow key={calldata.id}>
+                {visibleEntries.map((entry) => (
+                  <TableRow key={entry.id}>
                     <TableCell className="min-w-[280px]">
                       <div className="grid gap-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-mono text-sm font-medium">
-                            Calldata #{calldata.id}
+                            #{entry.id}
                           </span>
-                          {calldata.previousVersion ? (
+                          {entry.previousVersion ? (
                             <Badge variant="outline">
                               <GitBranch className="size-3" />
-                              from #{calldata.previousVersion}
+                              from #{entry.previousVersion}
                             </Badge>
                           ) : null}
                         </div>
                         <span className="max-w-[34rem] truncate text-sm text-muted-foreground">
-                          {calldata.description || "No description"}
+                          {entry.description || "No description"}
                         </span>
                       </div>
                     </TableCell>
                     <TableCell className="font-mono text-xs">
-                      {shortAddress(calldata.proposer)}
+                      {shortAddress(entry.proposer)}
                     </TableCell>
                     <TableCell className="font-mono text-xs">
-                      {shortAddress(calldata.executor)}
+                      {shortAddress(entry.executor)}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {calldata.timestamp}
+                      {entry.timestamp}
                     </TableCell>
                     <TableCell>
-                      <ReviewsBadge draft={calldata} />
+                      <ReviewsBadge draft={entry} />
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-2">
@@ -343,7 +523,7 @@ export function ProposalListPage({
                           nativeButton={false}
                           render={
                             <Link
-                              href={`/drafts/new?previousVersion=${calldata.id}`}
+                              href={`/drafts/new?previousVersion=${entry.id}`}
                             />
                           }
                         >
@@ -354,7 +534,7 @@ export function ProposalListPage({
                           variant="outline"
                           size="sm"
                           nativeButton={false}
-                          render={<Link href={`/drafts/${calldata.id}`} />}
+                          render={<Link href={`/drafts/${entry.id}`} />}
                         >
                           <ArrowUpRight className="size-3.5" />
                           View
@@ -365,6 +545,56 @@ export function ProposalListPage({
                 ))}
               </TableBody>
             </Table>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <span>Rows</span>
+              {pageSizeOptions.map((option) => (
+                <Button
+                  key={option}
+                  size="sm"
+                  variant={params.pageSize === option ? "default" : "outline"}
+                  nativeButton={false}
+                  render={
+                    <Link href={getHref({ pageSize: String(option), page: "1" })} />
+                  }
+                >
+                  {option}
+                </Button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage <= 1}
+                nativeButton={currentPage > 1 ? false : undefined}
+                render={
+                  currentPage > 1
+                    ? <Link href={getHref({ page: String(currentPage - 1) })} />
+                    : undefined
+                }
+              >
+                Previous
+              </Button>
+              <span className="min-w-20 text-center text-sm text-muted-foreground">
+                {currentPage} / {pageCount}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage >= pageCount}
+                nativeButton={currentPage < pageCount ? false : undefined}
+                render={
+                  currentPage < pageCount
+                    ? <Link href={getHref({ page: String(currentPage + 1) })} />
+                    : undefined
+                }
+              >
+                Next
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
