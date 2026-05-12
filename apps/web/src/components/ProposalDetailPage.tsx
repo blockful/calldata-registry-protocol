@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useAccount } from "wagmi";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -22,10 +23,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useDecodedActions } from "@/hooks/useCalldataDecoder";
 import { cn } from "@/lib/utils";
 import {
   mockDrafts,
@@ -33,6 +35,12 @@ import {
   type DraftReview,
   type ReviewDecision,
 } from "@/lib/mock-proposals";
+import type {
+  DecodedAction,
+  DecodedCall,
+  DecodedParam,
+  JsonValue,
+} from "@/lib/calldataDecoder";
 
 const decisionClassName: Record<ReviewDecision, string> = {
   approved: "border-foreground/30 bg-foreground/5 text-foreground",
@@ -166,7 +174,7 @@ function HistoryGraph({
 
   return (
     <div className="overflow-x-auto rounded-lg border">
-      <div className="relative h-[320px] min-w-[720px] bg-card">
+      <div className="relative h-[180px] min-w-[520px] bg-card">
         <svg
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 size-full"
@@ -206,7 +214,7 @@ function HistoryGraph({
               aria-current={isSelected ? "page" : undefined}
               className={cn(
                 buttonVariants({ variant: isSelected ? "default" : "outline" }),
-                "absolute z-10 h-16 w-40 -translate-x-1/2 -translate-y-1/2 flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left",
+                "absolute z-10 h-12 w-32 -translate-x-1/2 -translate-y-1/2 flex-col items-start gap-0.5 rounded-lg px-2.5 py-1.5 text-left",
                 !isSelected && "bg-background"
               )}
               style={{ left: `${draft.x}%`, top: `${draft.y}%` }}
@@ -217,9 +225,6 @@ function HistoryGraph({
               </span>
               <span className="font-mono text-[0.68rem] opacity-75">
                 {shortAddress(draft.proposer)}
-              </span>
-              <span className="text-[0.68rem] opacity-75">
-                {draft.timestamp}
               </span>
             </Link>
           );
@@ -256,15 +261,210 @@ function ReviewsList({ reviews }: { reviews: DraftReview[] }) {
   );
 }
 
+function formatJsonValue(value: JsonValue): string {
+  if (value === null) return "null";
+  if (Array.isArray(value) || typeof value === "object") {
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
+
+function DecodedParamRow({
+  param,
+  index = 0,
+  depth = 0,
+}: {
+  param: DecodedParam;
+  index?: number;
+  depth?: number;
+}) {
+  const hasChildren = param.children && param.children.length > 0;
+  const label = param.name || `Input ${index + 1}`;
+
+  return (
+    <div className="grid gap-2" style={{ marginLeft: `${depth * 12}px` }}>
+      <div className="grid gap-2 rounded-lg bg-muted/40 px-3 py-2 sm:grid-cols-[minmax(120px,0.45fr)_1fr] sm:items-baseline">
+        <div className="min-w-0">
+          <div className="text-sm font-medium">{label}</div>
+          <div className="font-mono text-xs text-muted-foreground">
+            {param.type}
+          </div>
+        </div>
+        {!hasChildren ? (
+          <div className="break-all font-mono text-sm text-foreground">
+            {formatJsonValue(param.value)}
+          </div>
+        ) : null}
+      </div>
+      {hasChildren ? (
+        <div className="grid gap-2 border-l pl-3">
+          {param.children!.map((child, index) => (
+            <DecodedParamRow
+              key={`${child.name}-${index}`}
+              param={child}
+              index={index}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      ) : null}
+      {param.decodedBytes ? (
+        <div className="mt-3 rounded-lg border bg-muted p-3">
+          <DecodedCallBlock call={param.decodedBytes} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function DecodedCallBlock({ call }: { call: DecodedCall }) {
+  const matchLabel =
+    call.source === "verified-abi"
+      ? "Verified ABI"
+      : call.source === "native-transfer"
+        ? "Native transfer"
+        : "Likely match";
+
+  return (
+    <div className="grid gap-4">
+      <div className="grid gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline">{matchLabel}</Badge>
+        </div>
+        <div className="break-all font-mono text-base font-medium text-foreground">
+          {call.signature}
+        </div>
+      </div>
+      {call.params.length > 0 ? (
+        <div className="grid gap-2">
+          {call.params.map((param, index) => (
+            <DecodedParamRow
+              key={`${param.name}-${index}`}
+              param={param}
+              index={index}
+            />
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">No parameters.</p>
+      )}
+    </div>
+  );
+}
+
+function DecodedActionState({
+  action,
+  isLoading,
+  isError,
+}: {
+  action: DecodedAction | undefined;
+  isLoading: boolean;
+  isError: boolean;
+}) {
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">Checking calldata...</p>;
+  }
+
+  if (isError) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Decoder unavailable.
+      </p>
+    );
+  }
+
+  if (!action) {
+    return <p className="text-sm text-muted-foreground">No decoder result.</p>;
+  }
+
+  if ((action.status === "decoded" || action.status === "empty") && action.decoded) {
+    return <DecodedCallBlock call={action.decoded} />;
+  }
+
+  if (action.status === "ambiguous") {
+    return (
+      <div className="grid gap-2">
+        <Badge variant="outline" className="w-fit">
+          Needs ABI
+        </Badge>
+        <p className="text-sm text-muted-foreground">
+          Several functions could match this call. Add the target contract ABI
+          before relying on a decoded view.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {(action.candidates ?? []).map((candidate) => (
+            <Badge key={candidate} variant="outline" className="font-mono">
+              {candidate}
+            </Badge>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-2">
+      <Badge variant="outline" className="w-fit">
+        Needs ABI
+      </Badge>
+      <p className="text-sm text-muted-foreground">
+        This call could not be decoded reliably from calldata alone.
+      </p>
+      {action.candidates && action.candidates.length > 0 ? (
+        <div className="grid gap-1">
+          <div className="text-xs font-medium text-muted-foreground">
+            Possible function
+          </div>
+          <p className="break-all font-mono text-sm">
+            {action.candidates[0]}
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function DecodedCallsPanel({
+  actions,
+  decodedActions,
+  isLoading,
+  isError,
+}: {
+  actions: Draft["actions"];
+  decodedActions: DecodedAction[] | undefined;
+  isLoading: boolean;
+  isError: boolean;
+}) {
+  return (
+    <div className="overflow-hidden rounded-lg border">
+      {actions.map((action, index) => (
+        <div
+          key={action.id}
+          className="grid gap-3 border-b p-4 last:border-b-0 sm:grid-cols-[90px_1fr]"
+        >
+          <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
+            Call {String(index + 1).padStart(2, "0")}
+          </div>
+          <DecodedActionState
+            action={decodedActions?.[index]}
+            isLoading={isLoading}
+            isError={isError}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ProposalDetailPage({
   initialDraftId,
 }: {
   initialDraftId: string;
 }) {
+  const { address, chainId } = useAccount();
   const initialDraft =
     mockDrafts.find((draft) => draft.id === initialDraftId) ?? mockDrafts[0];
   const [drafts, setDrafts] = useState<Draft[]>(mockDrafts);
-  const [reviewer, setReviewer] = useState("0xReviewer");
   const [reviewComment, setReviewComment] = useState("");
 
   const selectedDraft =
@@ -273,6 +473,24 @@ export function ProposalDetailPage({
     () => getDraftFamily(drafts, selectedDraft),
     [drafts, selectedDraft]
   );
+  const decoderActions = useMemo(
+    () =>
+      selectedDraft.actions.map(({ target, value, calldata }) => ({
+        target,
+        value,
+        calldata,
+      })),
+    [selectedDraft.actions]
+  );
+  const {
+    data: decodedActions,
+    isLoading: isDecoding,
+    isError: isDecodeError,
+  } = useDecodedActions({
+    actions: decoderActions,
+    extraData: selectedDraft.extraData,
+    chainId,
+  });
   const totals = reviewTotals(selectedDraft);
 
   function updateSelectedActions(nextActions: Draft["actions"]) {
@@ -289,12 +507,12 @@ export function ProposalDetailPage({
   }
 
   function submitReview(decision: ReviewDecision) {
-    if (!reviewComment.trim()) return;
+    if (!reviewComment.trim() || !address) return;
 
     const nextReview: DraftReview = {
       id: `review-${Date.now()}`,
       draftId: selectedDraft.id,
-      reviewer,
+      reviewer: address,
       decision,
       comment: reviewComment.trim(),
       createdAt: "Just now",
@@ -352,14 +570,11 @@ export function ProposalDetailPage({
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2">
             <GitBranch className="size-4" />
-            Graph
+            Lineage
           </CardTitle>
-          <CardDescription>
-            Versions linked through previousVersion.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <HistoryGraph drafts={draftFamily} selectedDraft={selectedDraft} />
@@ -387,14 +602,31 @@ export function ProposalDetailPage({
             Calls
           </CardTitle>
           <CardDescription>
-            Review the full calls array and edit target, value, or encoded data locally.
+            Decode calls first; switch to raw calldata when you need the exact
+            payload.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <CalldataCallBuilder
-            actions={selectedDraft.actions}
-            onChange={updateSelectedActions}
-          />
+          <Tabs defaultValue="decoded" className="gap-4">
+            <TabsList>
+              <TabsTrigger value="decoded">Decoded</TabsTrigger>
+              <TabsTrigger value="raw">Raw</TabsTrigger>
+            </TabsList>
+            <TabsContent value="decoded">
+              <DecodedCallsPanel
+                actions={selectedDraft.actions}
+                decodedActions={decodedActions}
+                isLoading={isDecoding}
+                isError={isDecodeError}
+              />
+            </TabsContent>
+            <TabsContent value="raw">
+              <CalldataCallBuilder
+                actions={selectedDraft.actions}
+                onChange={updateSelectedActions}
+              />
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 
@@ -428,13 +660,10 @@ export function ProposalDetailPage({
             </div>
             <Separator />
             <div className="grid gap-2">
-              <Label htmlFor="reviewer">Reviewer</Label>
-              <Input
-                id="reviewer"
-                value={reviewer}
-                onChange={(event) => setReviewer(event.target.value)}
-                className="font-mono"
-              />
+              <Label>Reviewer wallet</Label>
+              <div className="min-h-10 break-all rounded-lg border bg-muted px-3 py-2 font-mono text-sm text-muted-foreground">
+                {address ?? "Not connected"}
+              </div>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="review-comment">Review note</Label>
@@ -449,7 +678,7 @@ export function ProposalDetailPage({
               <Button
                 type="button"
                 onClick={() => submitReview("approved")}
-                disabled={!reviewComment.trim()}
+                disabled={!reviewComment.trim() || !address}
               >
                 <CheckCircle2 className="size-4" />
                 Approve
@@ -458,7 +687,7 @@ export function ProposalDetailPage({
                 type="button"
                 variant="outline"
                 onClick={() => submitReview("rejected")}
-                disabled={!reviewComment.trim()}
+                disabled={!reviewComment.trim() || !address}
               >
                 <XCircle className="size-4" />
                 Reject
